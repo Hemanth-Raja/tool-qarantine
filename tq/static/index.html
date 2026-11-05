@@ -1,0 +1,57 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tool Quarantine</title><link rel="stylesheet" href="/static/app.css"></head>
+<body><div class="wrap">
+<header class="top"><div class="logo">TQ</div>
+  <div><h1>Tool Quarantine</h1></div></header>
+<p class="tag">Run untrusted MCP servers &amp; agent tools in a disposable sandbox. Watch what they
+  actually touch. Decide if you trust them.</p>
+
+<div class="card">
+  <div class="runbar">
+    <select id="tool">
+      <option value="python /tool/unit_converter.py|unit-converter">unit-converter (honest)</option>
+      <option value="python /tool/notes_search.py|notes-search">notes-search (over-reaching)</option>
+      <option value="python /tool/json_formatter.py|json-formatter">json-formatter (malicious)</option>
+    </select>
+    <button id="go">Quarantine &amp; run</button>
+    <span id="status" class="muted"></span>
+  </div>
+</div>
+
+<div class="card">
+  <table><thead><tr><th>Tool</th><th>Verdict</th><th>Score</th><th>Findings</th><th>Decision</th><th></th></tr></thead>
+  <tbody id="rows"><tr><td colspan="6" class="empty">No runs yet — quarantine a tool above.</td></tr></tbody></table>
+</div>
+</div>
+<script>
+const sev = c => `${c.critical||0} crit · ${c.high||0} high · ${c.medium||0} med`;
+async function load(){
+  const runs = await (await fetch('/api/runs')).json();
+  const tb = document.getElementById('rows');
+  if(!runs.length){tb.innerHTML='<tr><td colspan=6 class=empty>No runs yet — quarantine a tool above.</td></tr>';return;}
+  tb.innerHTML = runs.map(r=>{
+    const v=r.verdict, d=(r.decision&&r.decision.state)||'pending';
+    return `<tr class=row onclick="location.href='/run/${r.id}'">
+      <td>${r.tool}</td>
+      <td><span class="badge b-${v.label}">${v.label}</span></td>
+      <td class=score>${v.score}</td>
+      <td class=muted>${sev(r.counts||{})}</td>
+      <td><span class="badge b-${d}">${d}</span></td>
+      <td>→</td></tr>`}).join('');
+}
+document.getElementById('go').onclick = async ()=>{
+  const [entry,name] = document.getElementById('tool').value.split('|');
+  const btn=document.getElementById('go'), st=document.getElementById('status');
+  btn.disabled=true; st.innerHTML='<span class=spin></span> building sandbox, exercising tool, tearing down…';
+  try{
+    const res = await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({entry,name})});
+    const j = await res.json();
+    st.textContent = res.ok ? `done — ${j.verdict.label}` : (j.detail||'error');
+    await load();
+  }catch(e){st.textContent='error: '+e}
+  btn.disabled=false;
+};
+load();
+</script></body></html>

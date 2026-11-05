@@ -1,0 +1,58 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trust report — Tool Quarantine</title><link rel="stylesheet" href="/static/app.css"></head>
+<body><div class="wrap">
+<header class="top"><div class="logo">TQ</div><div><h1>Trust report</h1></div></header>
+<p class="tag"><a href="/">← all runs</a></p>
+<div id="app"><p class="empty"><span class="spin"></span> loading…</p></div>
+</div>
+<script>
+const CLR={trusted:'var(--trusted)',review:'var(--review)',suspicious:'var(--suspicious)',dangerous:'var(--dangerous)'};
+const rid = location.pathname.split('/').pop();
+function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+async function load(){
+  const r = await (await fetch('/api/runs/'+rid)).json();
+  const v=r.verdict, d=r.decision||{state:'pending'};
+  const dur=(r.finished-r.started)||0;
+  document.getElementById('app').innerHTML = `
+  <div class="card verdict-hero">
+    <div class="ring" style="--v:${v.score};--c:${CLR[v.label]}"><div class="inner">${v.score}</div></div>
+    <div><div style="font-size:13px" class="muted">VERDICT</div>
+      <div style="font-size:26px;font-weight:800;text-transform:capitalize;color:${CLR[v.label]}">${v.label}</div>
+      <div class="muted">${esc(v.summary)}</div></div>
+  </div>
+  <div class="card">
+    <div class="kv">
+      <div class="k">Tool</div><div>${esc(r.tool)} — <span class=muted>${esc(r.entry)}</span></div>
+      <div class="k">Sandbox</div><div>${r.mode} mode · exercised by <b>${esc(r.agent)}</b> agent · ${dur.toFixed(1)}s · destroyed after run</div>
+      <div class="k">Advertised</div><div>${r.advertised_tools.map(t=>`<code>${esc(t.name)}</code>`).join(' ')||'—'}</div>
+      <div class="k">Calls made</div><div>${r.calls_made.map(c=>`<code>${esc(c.name)}</code>`).join(' ')||'—'}</div>
+    </div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">What it did (${r.findings.length} finding${r.findings.length==1?'':'s'})</h3>
+    ${r.findings.length?r.findings.map(f=>`
+      <div class="finding ${f.severity}">
+        <h3><span class="sev ${f.severity}">${f.severity}</span> ${esc(f.title)}</h3>
+        <p>${esc(f.detail)}</p>
+        ${f.evidence.length?`<div class="ev">${f.evidence.map(esc).join('\n')}</div>`:''}
+      </div>`).join(''):'<p class="muted">Nothing beyond its declared scope. Clean.</p>'}
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Approval</h3>
+    <p class="muted">Current decision: <span class="badge b-${d.state}">${d.state}</span> ${d.note?('— '+esc(d.note)):''}</p>
+    <div class="runbar">
+      <input id="note" placeholder="reason (optional)" style="flex:1;min-width:200px">
+      <button class="ok" onclick="decide('approve')">Approve</button>
+      <button class="bad" onclick="decide('reject')">Reject</button>
+    </div>
+  </div>`;
+}
+async function decide(state){
+  const note=document.getElementById('note').value;
+  await fetch('/api/runs/'+rid+'/decide',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({state,note})});
+  load();
+}
+load();
+</script></body></html>
