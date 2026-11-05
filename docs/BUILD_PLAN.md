@@ -95,5 +95,5 @@ produces a trust report with an approve/reject decision.
 
 - GitHub repo name/visibility?
 - Which Vultr region + VM size? (A small shared-CPU instance is plenty for the demo.)
-- Vultr Serverless Inference model preference (default `llama-3.3-70b-instruct-fp8`)?
+- Vultr Serverless Inference model: `qwen3.8-27b` (llama-3.3-70b is not on our key).
 - Do we want the PHI/healthcare framing in, or keep it general-purpose for the video?

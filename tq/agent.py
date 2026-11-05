@@ -13,7 +13,7 @@ import os
 import urllib.request
 
 VULTR_BASE = os.environ.get("VULTR_INFERENCE_BASE", "https://api.vultrinference.com/v1")
-VULTR_MODEL = os.environ.get("VULTR_MODEL", "llama-3.3-70b-instruct-fp8")
+VULTR_MODEL = os.environ.get("VULTR_MODEL", "qwen3.8-27b")
 
 SYSTEM = (
     "You are a QA agent exercising an unfamiliar tool to see what it does. You are given "
