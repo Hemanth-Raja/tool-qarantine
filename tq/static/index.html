@@ -46,6 +46,14 @@
 </div>
 
 <div class="card">
+  <div class="row" style="margin-bottom:6px"><h2>Tool registry</h2><span class="sp" style="flex:1"></span>
+    <span class="muted" style="font-size:13px">agents check <code>/api/registry/check?hash=…</code> before launching a tool</span></div>
+  <p class="sub">Every tool version a reviewer approved (pinned by code fingerprint) or blocked.</p>
+  <div style="overflow-x:auto"><table><thead><tr><th>Tool</th><th>State</th><th>Fingerprint</th><th>Quarantine verdict</th><th>Note</th><th>When</th></tr></thead>
+  <tbody id="reg"><tr><td colspan="6" class="empty">Nothing approved or blocked yet. Open a run and decide.</td></tr></tbody></table></div>
+</div>
+
+<div class="card">
   <div class="row" style="margin-bottom:6px"><h2>Recent runs</h2><span class="sp" style="flex:1"></span>
     <span class="muted" style="font-size:13px">click a run for the full trust report</span></div>
   <div style="overflow-x:auto"><table><thead><tr><th>Tool</th><th>Status</th><th>Verdict</th><th>Score</th><th>Findings</th><th>Decision</th><th>When</th></tr></thead>
@@ -80,6 +88,16 @@ document.getElementById('samples').innerHTML=SAMPLES.map(x=>`<div class="tool">
   <span class="tech">${esc(x.t)}</span>
   <button onclick="runSample('python /tool/${x.f}.py','${x.n}',this)">Quarantine &amp; run</button></div>`).join('');
 let polling=null;
+async function loadRegistry(){
+  const reg=await (await fetch('/api/registry')).json();
+  if(!reg.length)return;
+  $('reg').innerHTML=reg.map(e=>`<tr class=click onclick="location.href='/run/${e.run_id}'">
+    <td><span class=mono>${esc(e.tool)}</span></td>
+    <td><span class="badge b-${e.state==='approved'?'approve':'reject'}">${e.state==='approved'?'✓ approved':'⛔ blocked'}</span></td>
+    <td><code title="${esc(e.hash)}">sha256:${esc(e.hash.slice(0,12))}</code></td>
+    <td>${e.verdict?`<span class="badge b-${e.verdict}">${e.verdict}</span> <span class=score>${e.score}</span>`:'—'}</td>
+    <td class=muted>${esc(e.note||'')}</td><td class=dim>${ago(e.at)}</td></tr>`).join('');
+}
 async function load(){
   const runs=await (await fetch('/api/runs')).json();
   const tb=$('rows');
@@ -139,5 +157,5 @@ $('upgo').onclick=async()=>{
   }catch(e){msg.className='err';msg.textContent=e.message;btn.disabled=false}
 };
 fetch('/api/config').then(r=>r.json()).then(c=>{$('agentname').textContent=c.agent;if(!c.uploads)$('byo').classList.add('hide')});
-load();
+load();loadRegistry();
 </script></body></html>

@@ -104,7 +104,13 @@ can build and destroy sandboxes.
   area (workspace files, home directory, credentials, network, other programs, writes:
   *says it does this* / *says it does not* / *not mentioned*), shown next to what the sandbox
   observed, with each area marked *as claimed*, *unexpected* or *over-reach*.
-- Findings with evidence, the agent's calls and outputs, and the approve / reject decision.
+- Findings with evidence and the agent's calls and outputs.
+- **Approve / Reject is enforced, not just a label.** Every run fingerprints the tool's code
+  (sha256). Approving pins that exact version to the tool registry; rejecting blocks it.
+  Agents or an MCP gateway ask `GET /api/registry/check?hash=<sha256>` before launching a
+  tool and get `{"allowed": true|false, ...}`; unknown code is not allowed. Any change to the
+  code changes the fingerprint, so an "update" that adds a rug pull has to be quarantined
+  again. The dashboard lists the registry.
 
 ## Submitting your own tool
 

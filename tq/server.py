@@ -8,13 +8,16 @@ Endpoints:
   GET  /api/runs              list runs (JSON)
   GET  /api/runs/{id}         one run (JSON; status running | done | error)
   GET  /api/runs/{id}/live    ?after=N  timeline events since N while the run is going
-  POST /api/runs/{id}/decide  {state: approve|reject, note}      approval workflow
+  POST /api/runs/{id}/decide  {state: approve|reject, note}  pins / blocks that code's hash
+  GET  /api/registry          approved and blocked tool versions
+  GET  /api/registry/check    ?hash=  can this exact code run? (for agents / MCP gateways)
   POST /api/tools/upload      raw zip body, ?name=&entry=          -> uploaded tool
   POST /api/tools/github      {url, name?, entry?}                 -> uploaded tool
   GET  /api/tools             uploaded tools
   GET  /healthz
 The HTML is served from static/ ; the pages are plain JS calling the JSON API.
 """
+import hashlib
 import os
 import threading
 import time
@@ -79,11 +82,35 @@ def _resolve(req):
     return tool_dir, req.entry, req.name, "built-in sample"
 
 
+def tool_hash(tool_dir, entry, source):
+    """sha256 over the tool's code. For built-in samples (which share a folder) only the
+    entry script and the helper it imports; for uploads, every file."""
+    h = hashlib.sha256()
+    if source == "built-in sample":
+        script = os.path.basename(entry.split()[-1])
+        files = [script, "mini_mcp.py"]
+    else:
+        files = []
+        for dirpath, dirs, fs in os.walk(tool_dir):
+            dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+            files += [os.path.relpath(os.path.join(dirpath, f), tool_dir) for f in sorted(fs)
+                      if not f.startswith(".tq-")]
+    for rel in files:
+        p = os.path.join(tool_dir, rel)
+        if os.path.isfile(p):
+            h.update(rel.encode() + b"\0")
+            with open(p, "rb") as fh:
+                h.update(fh.read())
+    h.update(b"entry\0" + entry.encode())
+    return h.hexdigest()
+
+
 def _work(rid, lv, tool_dir, entry, name, mode, source):
     with _slots:
         try:
             rep = runner.run(tool_dir, entry, tool_name=name or None, mode=mode, live=lv)
-            rep.update(id=rid, status="done", source=source)
+            rep.update(id=rid, status="done", source=source,
+                       tool_hash=tool_hash(tool_dir, entry, source))
             store.save_run(rep)
         except Exception as e:
             traceback.print_exc()
@@ -125,6 +152,7 @@ def api_get(rid: str):
     if r.get("status") == "running" and not live.get(rid):
         r["status"] = "error"   # orphaned by a restart
         r["error"] = "the server restarted while this run was in progress"
+    r["registry"] = store.registry_entry(r.get("tool_hash")) if r.get("tool_hash") else None
     return r
 
 
@@ -150,7 +178,27 @@ def api_decide(rid: str, req: DecideReq):
     r = store.set_decision(rid, req.state, req.note)
     if not r:
         raise HTTPException(404, "no such run")
-    return r["decision"]
+    return {**r["decision"], "registry": r.get("registry")}
+
+
+@app.get("/api/registry")
+def api_registry():
+    """Every tool version a human has approved or blocked, newest first."""
+    return sorted(store.registry().values(), key=lambda e: e.get("at", 0), reverse=True)
+
+
+@app.get("/api/registry/check")
+def api_registry_check(hash: str):
+    """What an agent or MCP gateway asks before launching a tool: is this exact code allowed?"""
+    e = store.registry_entry(hash)
+    if not e:
+        return {"allowed": False, "state": "unknown", "hash": hash,
+                "reason": "This code has never been quarantined and approved. Run it through "
+                          "Tool Quarantine first."}
+    return {"allowed": e["state"] == "approved", "state": e["state"], "hash": hash,
+            "tool": e["tool"], "run_id": e["run_id"], "verdict": e.get("verdict"),
+            "reason": ("Approved after a quarantine run." if e["state"] == "approved"
+                       else "Blocked by a reviewer after a quarantine run.")}
 
 
 # ------------------------------------------------------------------ bring your own tool

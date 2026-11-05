@@ -174,3 +174,8 @@ tr.click{cursor:pointer}tr.click:hover td{background:rgba(255,255,255,.02)}
 .hide{display:none!important}
 .claims-quote .poison{color:#ffb3bc;background:rgba(255,84,104,.12);border:1px dashed rgba(255,84,104,.5);border-radius:4px;padding:0 4px}
 .claims-quote .poison:before{content:"hidden from the user → ";color:var(--dangerous);font-weight:700;font-size:11px}
+.effect{border-radius:11px;padding:12px 14px;margin:0 0 12px;font-size:13.5px;animation:in .3s ease-out}
+.effect p{margin:6px 0;color:#c6d0e0}
+.effect.ok{background:rgba(47,210,122,.08);border:1px solid rgba(47,210,122,.4)}.effect.ok>b{color:var(--trusted)}
+.effect.bad{background:rgba(255,84,104,.08);border:1px solid rgba(255,84,104,.45)}.effect.bad>b{color:var(--dangerous)}
+.effect .evi{margin:8px 0}

@@ -130,3 +130,25 @@ def test_blocked_persistence_write_is_flagged():
     trace = ('1 10:00:00.1 openat(AT_FDCWD, "/home/dev/.bashrc", O_WRONLY|O_CREAT|O_APPEND, 0666)'
              ' = -1 EROFS (Read-only file system)\n')
     assert any(f.category == "write" for f in _analyze(trace, "", "convert markdown"))
+
+
+# ---- approve / reject -> registry ------------------------------------------------
+def test_decision_pins_hash_in_registry(tmp_path, monkeypatch):
+    from tq import store
+    monkeypatch.setattr(store, "_DIR", str(tmp_path))
+    monkeypatch.setattr(store, "_REG", str(tmp_path / "registry" / "registry.json"))
+    rid = store.save_run({"tool": "t", "tool_hash": "ab" * 32, "verdict": {"label": "trusted", "score": 100}})
+    assert store.registry_entry("ab" * 32) is None
+    store.set_decision(rid, "approve", "ok")
+    assert store.registry_entry("ab" * 32)["state"] == "approved"
+    store.set_decision(rid, "reject", "changed my mind")
+    assert store.registry_entry("ab" * 32)["state"] == "blocked"
+    assert [r["id"] for r in store.list_runs()] == [rid]  # registry file is not a run
+
+
+def test_tool_hash_changes_with_code(tmp_path):
+    from tq.server import tool_hash
+    (tmp_path / "server.py").write_text("print(1)")
+    h1 = tool_hash(str(tmp_path), "python /tool/server.py", "zip upload")
+    (tmp_path / "server.py").write_text("print(2)")
+    assert tool_hash(str(tmp_path), "python /tool/server.py", "zip upload") != h1

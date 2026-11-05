@@ -39,9 +39,10 @@
       </div>
     </div>
     <div class="card" id="approval">
-      <h2>Approval</h2>
-      <p class="sub" id="dec">Current decision: <span class="badge b-pending">pending</span></p>
-      <div class="row">
+      <h2>Decision</h2>
+      <p class="sub" id="fp">Approving pins this exact code to your tool allowlist. Rejecting blocks it.</p>
+      <div id="effect"></div>
+      <div class="row" id="decide-row">
         <input id="note" placeholder="reason (optional)" style="flex:1;min-width:160px">
         <button class="ok" onclick="decide('approve')">Approve</button>
         <button class="bad" onclick="decide('reject')">Reject</button>
@@ -130,8 +131,31 @@ function header(r){
   $('toolname').textContent=r.tool||'tool'; document.title=`${r.tool} · Trust report`;
   $('meta').innerHTML=[r.source&&esc(r.source), r.entry&&`<code>${esc(r.entry)}</code>`, r.agent&&('agent: '+esc(r.agent)),
     r.mode&&esc(r.mode+' sandbox'), r.finished&&((r.finished-r.started).toFixed(1)+'s')].filter(Boolean).join(' · ');
-  const d=r.decision||{state:'pending'};
-  $('dec').innerHTML=`Current decision: <span class="badge b-${d.state}">${d.state}</span> ${d.note?('· '+esc(d.note)):''}`;
+  renderDecision(r);
+}
+function short(h){return h?h.slice(0,12):''}
+function when(t){return t?new Date(t*1000).toLocaleString():''}
+function renderDecision(r){
+  const d=r.decision||{state:'pending'}, reg=r.registry, h=r.tool_hash;
+  $('fp').innerHTML=h?`Code fingerprint <code title="${h}">sha256:${short(h)}</code>. Approving pins this exact version to the tool allowlist that agents check before launching a tool; rejecting blocks it.`
+    :'This run predates code fingerprints. Run the tool again to pin or block it.';
+  const host=location.origin, check=h?`${host}/api/registry/check?hash=${h}`:'';
+  let html='';
+  if(d.state==='approve'){
+    html=`<div class="effect ok"><b>✓ Approved and pinned to the allowlist</b>
+      <p>Agents and MCP gateways that ask the registry may now launch <b>${esc(r.tool)}</b>, but only this exact code (<code>sha256:${short(h)}</code>).
+      If a single byte changes, the fingerprint changes and the new version has to be quarantined again. That's how a later "update" can't slip in a rug pull.</p>
+      ${h?`<div class="evi">$ curl ${esc(check)}\n{"allowed": true, "state": "approved", "tool": "${esc(r.tool)}"}</div>`:''}
+      <p class="dim">${esc(when(d.at))}${d.note?' · '+esc(d.note):''}</p></div>`;
+  }else if(d.state==='reject'){
+    html=`<div class="effect bad"><b>⛔ Blocked</b>
+      <p>This version of <b>${esc(r.tool)}</b> (<code>sha256:${short(h)}</code>) is on the blocklist. Any agent or gateway that checks the registry will refuse to launch it.</p>
+      ${h?`<div class="evi">$ curl ${esc(check)}\n{"allowed": false, "state": "blocked", "tool": "${esc(r.tool)}"}</div>`:''}
+      <p class="dim">${esc(when(d.at))}${d.note?' · '+esc(d.note):''}</p></div>`;
+  }else if(reg){
+    html=`<div class="effect ${reg.state==='approved'?'ok':'bad'}"><b>This exact code was already ${reg.state}</b> in <a href="/run/${reg.run_id}">another run</a>.</div>`;
+  }
+  $('effect').innerHTML=html;
 }
 const CLAIM_TXT={declared:'Says it does this',denied:'Says it does NOT',silent:'Not mentioned'};
 const STATUS_TXT={ok:'as claimed',unused:'not used',unexpected:'unexpected',overreach:'over-reach'};
@@ -168,6 +192,8 @@ function renderAll(r){
   $('details').classList.remove('hide');
 }
 async function decide(state){
+  const v=report&&report.verdict;
+  if(state==='approve'&&v&&v.label!=='trusted'&&!confirm(`This tool was rated ${v.label.toUpperCase()} (${v.score}/100). Approve it anyway?`))return;
   await fetch('/api/runs/'+rid+'/decide',{method:'POST',headers:{'content-type':'application/json'},
     body:JSON.stringify({state,note:$('note').value})});
   await fetchReport(); header(report);
