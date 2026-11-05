@@ -2,6 +2,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Tool Quarantine · Sandbox every agent tool before it runs</title>
 <meta name="description" content="Tool Quarantine detonates untrusted MCP servers in a disposable, network-sinkholed sandbox, shows what they claim next to what they actually did, and pins approved code so agents only run what you vetted.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('tq-theme')||'dark'}catch(e){document.documentElement.dataset.theme='dark'}</script>
 <link rel="stylesheet" href="/static/app.css">
 <style>
 .lwrap{max-width:1180px;margin:0 auto;padding:0 24px}
@@ -10,12 +13,12 @@
 .lnav .links{display:flex;gap:22px;margin-left:18px}.lnav .links a{color:var(--muted);font-size:14px}.lnav .links a:hover{color:var(--ink)}
 .lnav .sp{flex:1}
 .hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:46px;align-items:center;padding:56px 0 40px}
-.eyebrow{display:inline-flex;gap:8px;align-items:center;font-size:12.5px;color:#b9c4d6;border:1px solid var(--line2);background:var(--panel);padding:5px 12px;border-radius:999px;margin-bottom:18px}
+.eyebrow{display:inline-flex;gap:8px;align-items:center;font-size:12.5px;color:var(--ink2);border:1px solid var(--line2);background:var(--panel);padding:5px 12px;border-radius:999px;margin-bottom:18px}
 .eyebrow .dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
 .hero h1{font-size:52px;line-height:1.05;letter-spacing:-1.2px;margin:0 0 18px}
 .hero .lede{font-size:18px;max-width:560px;margin-bottom:28px}
 .cta{display:flex;gap:12px;flex-wrap:wrap}.cta .btn{padding:12px 20px;font-size:15px;border-radius:11px}
-.mock{border:1px solid var(--line2);border-radius:16px;background:linear-gradient(180deg,#0f1520,#090c12);box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(91,156,255,.06);overflow:hidden}
+.mock{border:1px solid var(--line2);border-radius:16px;background:linear-gradient(180deg,#10141e,#07090f);color:var(--ink);box-shadow:0 30px 80px rgba(0,0,0,.35),0 0 0 1px rgba(var(--accent-rgb),.08);overflow:hidden}
 .mock .bar{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line);align-items:center}
 .mock .bar i{width:10px;height:10px;border-radius:50%;background:var(--line2)}
 .mock .bar span{margin-left:10px;font-size:12px;color:var(--dim);font-family:var(--mono)}
@@ -30,14 +33,15 @@
 .kicker{font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
 .feat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .f{border:1px solid var(--line);border-radius:14px;padding:20px;background:linear-gradient(180deg,var(--panel),var(--bg2))}
-.f .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:rgba(91,156,255,.12);color:#9cc2ff;font-size:17px;margin-bottom:12px}
+.f .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:rgba(var(--accent-rgb),.12);color:var(--accent-ink);font-size:17px;margin-bottom:12px}
 .f h3{font-size:16px;margin:0 0 6px}.f p{color:var(--muted);font-size:14px;margin:0}
 .threats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .th{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--panel)}
+.th .k.k-mal{color:var(--dangerous)}.th .k.k-over{color:var(--suspicious)}.th .k.k-honest{color:var(--trusted)}.th .k.k-up{color:var(--accent)}
 .th .k{font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase}
 .th b{display:block;font-family:var(--mono);margin:4px 0}.th span{color:var(--muted);font-size:13px}
 .final{text-align:center;border:1px solid var(--line2);border-radius:20px;padding:48px 24px;margin-bottom:60px;
-  background:radial-gradient(600px 200px at 50% 0%,rgba(91,156,255,.16),transparent),var(--panel)}
+  background:radial-gradient(600px 200px at 50% 0%,rgba(var(--accent-rgb),.16),transparent),var(--panel)}
 .final h2{font-size:34px;margin:0 0 10px;letter-spacing:-.6px}.final .cta{justify-content:center;margin-top:22px}
 footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--dim);font-size:13px;display:flex;gap:18px;flex-wrap:wrap}
 footer a{color:var(--muted)}
@@ -51,6 +55,7 @@ footer a{color:var(--muted)}
 <nav class="lnav"><a class="brand" href="/"><span class="logo">TQ</span>Tool Quarantine</a>
   <div class="links"><a href="#how">How it works</a><a href="#features">Product</a><a href="#threats">Threats</a><a href="/app/integrations">Integrations</a></div>
   <div class="sp"></div><a href="https://github.com/Hemanth-Raja/tool-qarantine" class="muted gh" style="font-size:14px">GitHub</a>
+  <button class="iconbtn" id="theme" aria-label="Switch light or dark theme"></button>
   <a class="btn" href="/app">Open console →</a></nav>
 
 <section class="hero">
@@ -135,6 +140,11 @@ footer a{color:var(--muted)}
   <a href="/app">Console</a><a href="/app/integrations">API</a><a href="https://github.com/Hemanth-Raja/tool-qarantine">GitHub</a></footer>
 </div>
 <script>
+const SUN='<svg viewBox="0 0 24 24"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5 1.5 3h-3zm0 20-1.5-3h3zM2 12l3-1.5v3zm20 0-3 1.5v-3zM4.9 4.9l3.2 1-2.1 2.2zm14.2 14.2-3.2-1 2.1-2.2zM4.9 19.1l1-3.2 2.2 2.1zM19.1 4.9l-1 3.2-2.2-2.1z"/></svg>',
+  MOON='<svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+function paint(){const t=document.documentElement.dataset.theme;document.getElementById('theme').innerHTML=t==='dark'?SUN:MOON}
+document.getElementById('theme').onclick=()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';
+  document.documentElement.dataset.theme=t;try{localStorage.setItem('tq-theme',t)}catch(e){};paint()};paint();
 fetch('/api/stats').then(r=>r.json()).then(s=>{
   document.getElementById('s1').textContent=s.tools;document.getElementById('s2').textContent=s.threats_contained;
   document.getElementById('s3').textContent=s.exfil_attempts}).catch(()=>{});
