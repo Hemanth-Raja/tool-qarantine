@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# One-shot provisioning for a fresh Vultr Ubuntu 24.04 VM.
+# One-shot provisioning for a fresh Vultr Ubuntu 24.04+ VM.
 #   ssh root@<vm-ip> 'bash -s' < deploy/provision.sh
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
-apt-get update && apt-get install -y docker.io docker-compose-plugin git
+apt-get update && apt-get install -y docker.io git curl
+# Ubuntu ships Compose v2 as docker-compose-v2; docker-compose-plugin is Docker's own repo.
+apt-get install -y docker-compose-v2 || apt-get install -y docker-compose-plugin
 systemctl enable --now docker
 # Build the sandbox + sinkhole images the orchestrator needs.
 cd /opt
-[ -d tool-quarantine ] || git clone "${TQ_REPO:-https://github.com/REPLACE_ME/tool-quarantine}" tool-quarantine
+[ -d tool-quarantine ] || git clone "${TQ_REPO:-https://github.com/Hemanth-Raja/tool-qarantine}" tool-quarantine
 cd tool-quarantine
 docker build -t tq-sandbox:latest sandbox/
 docker build -t tq-sinkhole:latest sinkhole/
