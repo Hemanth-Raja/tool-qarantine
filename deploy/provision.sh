@@ -3,7 +3,7 @@
 #   ssh root@<vm-ip> 'bash -s' < deploy/provision.sh
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
-apt-get update && apt-get install -y docker.io git curl
+apt-get update && apt-get install -y docker.io docker-buildx git curl
 # Ubuntu ships Compose v2 as docker-compose-v2; docker-compose-plugin is Docker's own repo.
 apt-get install -y docker-compose-v2 || apt-get install -y docker-compose-plugin
 systemctl enable --now docker
