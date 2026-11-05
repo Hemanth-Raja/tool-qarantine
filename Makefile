@@ -1,9 +1,10 @@
+PORT ?= 8000
 .PHONY: images app test demo clean
 images:        ## build the sandbox + sinkhole images
 	docker build -t tq-sandbox:latest sandbox/
 	docker build -t tq-sinkhole:latest sinkhole/
-app:           ## run the web UI locally on :8000
-	uvicorn tq.server:app --reload --port 8000
+app:           ## run the web UI locally on :$(PORT)
+	uvicorn tq.server:app --reload --port $(PORT)
 test:          ## run the test suite
 	pytest -q
 demo:          ## run all three sample tools through the CLI

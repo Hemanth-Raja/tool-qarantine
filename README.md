@@ -65,7 +65,7 @@ make images                 # or: EXTRA_CA=/path/ca.crt HOST_STRACE=1 ./sandbox/
 make demo
 
 # 3. or launch the web UI
-make app                    # http://localhost:8000
+make app                    # http://localhost:8000  (port taken? make app PORT=8010)
 ```
 
 No Vultr key? The agent falls back to a deterministic **mock** that exercises every advertised
