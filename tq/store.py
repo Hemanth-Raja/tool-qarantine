@@ -33,15 +33,50 @@ def get_run(rid):
         return None
 
 
-def set_decision(rid, state, note=""):
+class DecisionError(ValueError):
+    pass
+
+
+def decision_rules(run, state, note, current):
+    """Who may flip what. Revoking (anything -> reject) is always one click: pulling an
+    approval must never be slowed down. Approving needs a written reason when it
+    overturns a block or when the quarantine verdict wasn't 'trusted'.
+    Returns the action label for the history."""
+    note = (note or "").strip()
+    label = (run.get("verdict") or {}).get("label")
+    if state == "reject":
+        return "approval revoked" if current == "approved" else "blocked"
+    if current == "blocked" and not note:
+        raise DecisionError("This version is blocked. Give a reason to overturn the block.")
+    if label and label != "trusted" and not note:
+        raise DecisionError(f"Quarantine rated this tool {label.upper()}. "
+                            "Give a reason to approve it anyway.")
+    return "block overturned, approved" if current == "blocked" else "approved"
+
+
+def set_decision(rid, state, note="", reviewer=""):
     r = get_run(rid)
     if not r:
         return None
-    r["decision"] = {"state": state, "note": note, "at": time.time()}
+    h = r.get("tool_hash")
+    reg = registry_entry(h) if h else None
+    current = reg["state"] if reg else {"approve": "approved", "reject": "blocked"}.get(
+        (r.get("decision") or {}).get("state"))
+    if current == ("approved" if state == "approve" else "blocked"):
+        r["registry"] = reg
+        return r  # already in that state: nothing changes, nothing to log
+    action = decision_rules(r, state, note, current)
+    now = time.time()
+    entry = {"action": action, "state": state, "note": (note or "").strip(),
+             "reviewer": (reviewer or "").strip()[:60] or "reviewer", "at": now,
+             "run_id": rid, "verdict": (r.get("verdict") or {}).get("label")}
+    r["decision"] = {"state": state, "note": entry["note"], "at": now,
+                     "reviewer": entry["reviewer"], "action": action}
+    r.setdefault("decision_history", []).append(entry)
     with _lock:
         with open(_path(rid), "w") as f:
             json.dump(r, f, indent=2)
-    r["registry"] = _register(r, state, note)
+    r["registry"] = _register(r, state, entry)
     return r
 
 
@@ -82,16 +117,19 @@ def registry_entry(tool_hash):
     return _load_registry().get(tool_hash)
 
 
-def _register(run, state, note):
+def _register(run, state, entry):
     h = run.get("tool_hash")
     if not h:
         return None
     with _lock:
         reg = _load_registry()
+        history = (reg.get(h) or {}).get("history", []) + [entry]
         reg[h] = {"hash": h, "state": "approved" if state == "approve" else "blocked",
                   "tool": run.get("tool"), "entry": run.get("entry"), "source": run.get("source"),
                   "run_id": run.get("id"), "verdict": (run.get("verdict") or {}).get("label"),
-                  "score": (run.get("verdict") or {}).get("score"), "note": note, "at": time.time()}
+                  "score": (run.get("verdict") or {}).get("score"), "note": entry["note"],
+                  "reviewer": entry["reviewer"], "action": entry["action"], "at": entry["at"],
+                  "history": history}
         os.makedirs(os.path.dirname(_REG), exist_ok=True)
         tmp = _REG + ".tmp"
         with open(tmp, "w") as f:

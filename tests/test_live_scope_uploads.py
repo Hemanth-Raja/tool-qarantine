@@ -141,8 +141,18 @@ def test_decision_pins_hash_in_registry(tmp_path, monkeypatch):
     assert store.registry_entry("ab" * 32) is None
     store.set_decision(rid, "approve", "ok")
     assert store.registry_entry("ab" * 32)["state"] == "approved"
-    store.set_decision(rid, "reject", "changed my mind")
-    assert store.registry_entry("ab" * 32)["state"] == "blocked"
+    store.set_decision(rid, "reject", "")                       # revoking needs no reason
+    e = store.registry_entry("ab" * 32)
+    assert e["state"] == "blocked" and e["action"] == "approval revoked"
+    with pytest.raises(store.DecisionError):
+        store.set_decision(rid, "approve", "")                  # overturning a block does
+    store.set_decision(rid, "approve", "false positive, kube tool", "Hemanth")
+    e = store.registry_entry("ab" * 32)
+    assert e["action"] == "block overturned, approved"
+    assert [h["action"] for h in e["history"]] == ["approved", "approval revoked",
+                                                   "block overturned, approved"]
+    store.set_decision(rid, "approve", "again")                 # same state: no new entry
+    assert len(store.registry_entry("ab" * 32)["history"]) == 3
     assert [r["id"] for r in store.list_runs()] == [rid]  # registry file is not a run
 
 
@@ -152,3 +162,15 @@ def test_tool_hash_changes_with_code(tmp_path):
     h1 = tool_hash(str(tmp_path), "python /tool/server.py", "zip upload")
     (tmp_path / "server.py").write_text("print(2)")
     assert tool_hash(str(tmp_path), "python /tool/server.py", "zip upload") != h1
+
+
+def test_approving_a_risky_tool_needs_a_reason(tmp_path, monkeypatch):
+    from tq import store
+    monkeypatch.setattr(store, "_DIR", str(tmp_path))
+    monkeypatch.setattr(store, "_REG", str(tmp_path / "registry" / "registry.json"))
+    rid = store.save_run({"tool": "x", "tool_hash": "cd" * 32,
+                          "verdict": {"label": "dangerous", "score": 0}})
+    with pytest.raises(store.DecisionError):
+        store.set_decision(rid, "approve", "")
+    store.set_decision(rid, "reject", "")
+    assert store.registry_entry("cd" * 32)["action"] == "blocked"

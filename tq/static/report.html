@@ -42,11 +42,9 @@
       <h2>Decision</h2>
       <p class="sub" id="fp">Approving pins this exact code to your tool allowlist. Rejecting blocks it.</p>
       <div id="effect"></div>
-      <div class="row" id="decide-row">
-        <input id="note" placeholder="reason (optional)" style="flex:1;min-width:160px">
-        <button class="ok" onclick="decide('approve')">Approve</button>
-        <button class="bad" onclick="decide('reject')">Reject</button>
-      </div>
+      <div id="decide-ui"></div>
+      <p class="err" id="decerr" style="margin:8px 0 0"></p>
+      <div id="hist"></div>
     </div>
   </div>
 </div>
@@ -135,28 +133,52 @@ function header(r){
 }
 function short(h){return h?h.slice(0,12):''}
 function when(t){return t?new Date(t*1000).toLocaleString():''}
+function curState(r){
+  if(r.registry)return r.registry.state;                       // decisions follow the code fingerprint
+  const d=(r.decision||{}).state; return d==='approve'?'approved':d==='reject'?'blocked':'pending';
+}
 function renderDecision(r){
-  const d=r.decision||{state:'pending'}, reg=r.registry, h=r.tool_hash;
-  $('fp').innerHTML=h?`Code fingerprint <code title="${h}">sha256:${short(h)}</code>. Approving pins this exact version to the tool allowlist that agents check before launching a tool; rejecting blocks it.`
+  const h=r.tool_hash, st=curState(r), d=r.registry||r.decision||{}, v=r.verdict||{};
+  $('fp').innerHTML=h?`Code fingerprint <code title="${h}">sha256:${short(h)}</code>. Decisions apply to this exact code, in every run of it.`
     :'This run predates code fingerprints. Run the tool again to pin or block it.';
-  const host=location.origin, check=h?`${host}/api/registry/check?hash=${h}`:'';
+  const check=h?`${location.origin}/api/registry/check?hash=${h}`:'';
   let html='';
-  if(d.state==='approve'){
+  if(st==='approved'){
     html=`<div class="effect ok"><b>✓ Approved and pinned to the allowlist</b>
-      <p>Agents and MCP gateways that ask the registry may now launch <b>${esc(r.tool)}</b>, but only this exact code (<code>sha256:${short(h)}</code>).
-      If a single byte changes, the fingerprint changes and the new version has to be quarantined again. That's how a later "update" can't slip in a rug pull.</p>
-      ${h?`<div class="evi">$ curl ${esc(check)}\n{"allowed": true, "state": "approved", "tool": "${esc(r.tool)}"}</div>`:''}
-      <p class="dim">${esc(when(d.at))}${d.note?' · '+esc(d.note):''}</p></div>`;
-  }else if(d.state==='reject'){
+      <p>Agents and MCP gateways that ask the registry may launch <b>${esc(r.tool)}</b>, but only this exact code.
+      If a single byte changes, the fingerprint changes and the new version has to be quarantined again, so a later "update" can't slip in a rug pull.</p>
+      ${h?`<div class="evi">$ curl ${esc(check)}\n{"allowed": true, "state": "approved", "tool": "${esc(r.tool)}"}</div>`:''}</div>`;
+  }else if(st==='blocked'){
     html=`<div class="effect bad"><b>⛔ Blocked</b>
-      <p>This version of <b>${esc(r.tool)}</b> (<code>sha256:${short(h)}</code>) is on the blocklist. Any agent or gateway that checks the registry will refuse to launch it.</p>
-      ${h?`<div class="evi">$ curl ${esc(check)}\n{"allowed": false, "state": "blocked", "tool": "${esc(r.tool)}"}</div>`:''}
-      <p class="dim">${esc(when(d.at))}${d.note?' · '+esc(d.note):''}</p></div>`;
-  }else if(reg){
-    html=`<div class="effect ${reg.state==='approved'?'ok':'bad'}"><b>This exact code was already ${reg.state}</b> in <a href="/run/${reg.run_id}">another run</a>.</div>`;
+      <p>This version of <b>${esc(r.tool)}</b> is on the blocklist. Any agent or gateway that checks the registry will refuse to launch it.</p>
+      ${h?`<div class="evi">$ curl ${esc(check)}\n{"allowed": false, "state": "blocked", "tool": "${esc(r.tool)}"}</div>`:''}</div>`;
   }
   $('effect').innerHTML=html;
+  // controls depend on the current state
+  const risky=v.label&&v.label!=='trusted', name=`<input id="reviewer" placeholder="your name" style="width:130px" value="${esc(getName())}">`;
+  let ui='';
+  if(st==='pending'){
+    ui=`<div class="row">${name}<input id="note" placeholder="${risky?`reason (required to approve: rated ${v.label})`:'reason (optional)'}" style="flex:1;min-width:160px"></div>
+      <div class="row" style="margin-top:8px"><button class="ok" onclick="decide('approve')">Approve</button>
+      <button class="bad" onclick="decide('reject')">Reject</button></div>`;
+  }else if(st==='approved'){
+    ui=`<div class="row">${name}<input id="note" placeholder="reason (optional)" style="flex:1;min-width:160px">
+      <button class="bad" onclick="decide('reject')">Revoke approval</button></div>
+      <p class="dim" style="font-size:12.5px;margin:6px 0 0">Revoking is always one click and takes effect on the next registry check.</p>`;
+  }else{
+    ui=`<div class="row">${name}<input id="note" placeholder="reason (required to overturn the block)" style="flex:1;min-width:160px">
+      <button class="ghost" onclick="decide('approve')">Overturn block &amp; approve</button></div>
+      <p class="dim" style="font-size:12.5px;margin:6px 0 0">Overturning a block needs a written reason, and it's kept in the history below.</p>`;
+  }
+  $('decide-ui').innerHTML=ui;
+  const hist=(r.registry&&r.registry.history)||r.decision_history||[];
+  $('hist').innerHTML=hist.length?`<div class="hist"><div class="hh">Decision history</div>${hist.slice().reverse().map(e=>`
+    <div class="hi ${e.state}"><span class="hd"></span><div><b>${esc(e.action)}</b> by ${esc(e.reviewer)}
+      <span class="dim">· ${esc(when(e.at))}${e.run_id!==rid?` · <a href="/run/${e.run_id}">other run</a>`:''}</span>
+      ${e.note?`<div class="hn">“${esc(e.note)}”</div>`:''}</div></div>`).join('')}</div>`:'';
 }
+function getName(){try{return localStorage.getItem('tq-reviewer')||''}catch(e){return ''}}
+function setName(n){try{localStorage.setItem('tq-reviewer',n)}catch(e){}}
 const CLAIM_TXT={declared:'Says it does this',denied:'Says it does NOT',silent:'Not mentioned'};
 const STATUS_TXT={ok:'as claimed',unused:'not used',unexpected:'unexpected',overreach:'over-reach'};
 function renderAll(r){
@@ -192,10 +214,16 @@ function renderAll(r){
   $('details').classList.remove('hide');
 }
 async function decide(state){
-  const v=report&&report.verdict;
-  if(state==='approve'&&v&&v.label!=='trusted'&&!confirm(`This tool was rated ${v.label.toUpperCase()} (${v.score}/100). Approve it anyway?`))return;
-  await fetch('/api/runs/'+rid+'/decide',{method:'POST',headers:{'content-type':'application/json'},
-    body:JSON.stringify({state,note:$('note').value})});
+  const v=(report&&report.verdict)||{}, note=$('note').value.trim(), reviewer=$('reviewer').value.trim(), st=curState(report);
+  $('decerr').textContent='';
+  if(state==='approve'&&!note&&(st==='blocked'||(v.label&&v.label!=='trusted'))){
+    $('decerr').textContent=st==='blocked'?'Give a reason to overturn the block.':`Quarantine rated this tool ${v.label.toUpperCase()}. Give a reason to approve it anyway.`;
+    $('note').focus(); return;
+  }
+  setName(reviewer);
+  const res=await fetch('/api/runs/'+rid+'/decide',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({state,note,reviewer})});
+  if(!res.ok){$('decerr').textContent=(await res.json()).detail||'could not save the decision';return}
   await fetchReport(); header(report);
 }
 $('replay').onclick=()=>{ if(!report||!report.timeline)return; resetFeed();

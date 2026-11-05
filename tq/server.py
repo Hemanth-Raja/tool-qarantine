@@ -51,6 +51,7 @@ class RunReq(BaseModel):
 class DecideReq(BaseModel):
     state: str
     note: str = ""
+    reviewer: str = ""
 
 
 class GithubReq(BaseModel):
@@ -175,7 +176,10 @@ def api_live(rid: str, after: int = 0):
 def api_decide(rid: str, req: DecideReq):
     if req.state not in ("approve", "reject"):
         raise HTTPException(400, "state must be approve or reject")
-    r = store.set_decision(rid, req.state, req.note)
+    try:
+        r = store.set_decision(rid, req.state, req.note, req.reviewer)
+    except store.DecisionError as e:
+        raise HTTPException(409, str(e))
     if not r:
         raise HTTPException(404, "no such run")
     return {**r["decision"], "registry": r.get("registry")}

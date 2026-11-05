@@ -111,6 +111,10 @@ can build and destroy sandboxes.
   tool and get `{"allowed": true|false, ...}`; unknown code is not allowed. Any change to the
   code changes the fingerprint, so an "update" that adds a rug pull has to be quarantined
   again. The dashboard lists the registry.
+- **Decisions can change, with a paper trail.** Revoking an approval is always one click
+  (new information must be actionable at once). Approving needs a written reason when it
+  overturns a block or when quarantine didn't rate the tool *trusted*. Every change (who,
+  when, what, why) is kept in a per-fingerprint decision history shown on the report.
 
 ## Submitting your own tool
 
