@@ -20,18 +20,9 @@
 
 <div class="card">
   <h2>Try a sample tool</h2>
-  <p class="sub">Three MCP servers that all look harmless from their descriptions.</p>
-  <div class="grid3">
-    <div class="tool"><span class="kind k-honest">Honest</span><span class="name">unit-converter</span>
-      <span class="claim">"Convert a value between units. Pure computation; does not read files or use the network."</span>
-      <button onclick="runSample('python /tool/unit_converter.py','unit-converter',this)">Quarantine &amp; run</button></div>
-    <div class="tool"><span class="kind k-over">Over-reaching</span><span class="name">notes-search</span>
-      <span class="claim">"Search the user's markdown notes in the project workspace. Read-only, workspace only."</span>
-      <button onclick="runSample('python /tool/notes_search.py','notes-search',this)">Quarantine &amp; run</button></div>
-    <div class="tool"><span class="kind k-mal">Malicious</span><span class="name">json-formatter</span>
-      <span class="claim">"Pretty-print a JSON string with a given indent. Pure formatting."</span>
-      <button onclick="runSample('python /tool/json_formatter.py','json-formatter',this)">Quarantine &amp; run</button></div>
-  </div>
+  <p class="sub">Seven MCP servers that all look harmless from their descriptions. Five of them are
+    built on the official MCP SDK, and each bad one uses a technique seen in real supply-chain attacks.</p>
+  <div class="grid3" id="samples"></div>
 </div>
 
 <div class="card" id="byo">
@@ -67,6 +58,27 @@ function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt
 const sev=c=>c?`${c.critical||0} crit · ${c.high||0} high · ${c.medium||0} med`:'—';
 function ago(t){if(!t)return'';const s=Date.now()/1000-t;if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';
   if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
+const SAMPLES=[
+ {f:'csv_analyst',n:'csv-analyst',k:'honest',kc:'k-honest',t:'Reads only the workspace file it was asked about',
+  c:'Summarize a CSV file from the project workspace. Read-only, workspace files only, no network.'},
+ {f:'unit_converter',n:'unit-converter',k:'honest',kc:'k-honest',t:'Pure computation, touches nothing',
+  c:'Convert a value between units. Pure computation; does not read files or use the network.'},
+ {f:'notes_search',n:'notes-search',k:'over-reaching',kc:'k-over',t:'Quietly indexes your whole home folder',
+  c:"Search the user's markdown notes in the project workspace. Read-only, workspace only."},
+ {f:'doc_converter',n:'doc-converter',k:'persistence',kc:'k-over',t:'Fingerprints the machine, edits ~/.bashrc to run at every login',
+  c:'Convert a Markdown file in the project workspace to simple HTML.'},
+ {f:'json_formatter',n:'json-formatter',k:'exfiltration',kc:'k-mal',t:'Reads cloud keys, POSTs them to an "analytics" host',
+  c:'Pretty-print a JSON string with a given indent. Pure formatting.'},
+ {f:'weather_forecast',n:'weather-forecast',k:'tool poisoning',kc:'k-mal',t:'Hidden <IMPORTANT> prompt, SSH key smuggled out through DNS',
+  c:'Get the 3-day weather forecast for a city.'},
+ {f:'github_helper',n:'github-helper',k:'rug pull',kc:'k-mal',t:'Clean on the first call, steals every credential from the second',
+  c:'List open pull requests. Uses your GitHub CLI login to call api.github.com.'},
+];
+document.getElementById('samples').innerHTML=SAMPLES.map(x=>`<div class="tool">
+  <span class="kind ${x.kc}">${esc(x.k)}</span><span class="name">${esc(x.n)}</span>
+  <span class="claim">"${esc(x.c)}"</span>
+  <span class="tech">${esc(x.t)}</span>
+  <button onclick="runSample('python /tool/${x.f}.py','${x.n}',this)">Quarantine &amp; run</button></div>`).join('');
 let polling=null;
 async function load(){
   const runs=await (await fetch('/api/runs')).json();

@@ -16,13 +16,23 @@ every process it spawns, and every byte it tries to send over the network, and p
 
 ## The containment moment
 
-Three sample tools ship with the project:
+Seven sample tools ship with the project. Five use the official MCP Python SDK (FastMCP);
+each malicious one uses a technique seen in real supply-chain / MCP attacks:
 
 | Tool | Claims to | Actually does | Verdict |
 |------|-----------|---------------|---------|
+| `csv-analyst` | summarize a workspace CSV | exactly that | **trusted** (100) |
 | `unit-converter` | convert units | pure computation | **trusted** (100) |
-| `notes-search` | search `/workspace` notes | also reads private docs in `$HOME` | **suspicious** (70) |
+| `notes-search` | search `/workspace` notes | also reads private docs in `$HOME` | **suspicious** |
+| `doc-converter` | Markdown → HTML | runs `whoami`/`uname`/`id`, tries to add a `curl \| sh` line to `~/.bashrc` (persistence) | **suspicious** |
 | `json-formatter` | pretty-print JSON | reads cloud creds + POSTs them out | **dangerous** (0) |
+| `weather-forecast` | 3-day forecast | **tool poisoning**: a hidden `<IMPORTANT>` block tells the model to send the SSH key; the server then smuggles it out **inside DNS lookups** | **dangerous** (0) |
+| `github-helper` | list PRs via your gh login + api.github.com | **rug pull**: clean on call 1, then harvests AWS/npm/kube/.env and ships them over TLS to a look-alike host | **dangerous** (0) |
+
+The sandbox home directory looks like a real developer laptop (SSH keys and config, AWS,
+GitHub CLI, npm, Docker, kube, gcloud, `.netrc`, a project `.env`), all decoy canaries.
+Credentials and hosts a tool *openly declares* (e.g. "uses ~/.config/gh to call
+api.github.com") are not flagged; everything beyond them is.
 
 The malicious one reads decoy AWS/GitHub/SSH canaries and tries to `POST` them to an
 "analytics" host. On the quarantine network every route is a **sinkhole**, so nothing leaves —

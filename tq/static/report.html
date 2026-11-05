@@ -62,7 +62,7 @@
 const $=id=>document.getElementById(id);
 const rid=location.pathname.split('/').pop();
 const CLR={trusted:'var(--trusted)',review:'var(--review)',suspicious:'var(--suspicious)',dangerous:'var(--dangerous)'};
-const ICON={phase:'◆',tools:'▤',plan:'✦',call:'→',result:'←',file:'▸',secret:'⚿',dns:'◎',net:'⇄',exfil:'⛔',exec:'⚡',write:'✎',verdict:'■',error:'✖'};
+const ICON={phase:'◆',tools:'▤',plan:'✦',call:'→',result:'←',file:'▸',secret:'⚿',dns:'◎',net:'⇄',exfil:'⛔',exec:'⚡',write:'✎',verdict:'■',error:'✖',poison:'☠'};
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 let report=null, queue=[], shown=0, cursor=0, playing=false, live=false, lastT=0, counts={};
 
@@ -141,7 +141,8 @@ function renderAll(r){
     $('findings').innerHTML=`<h2>Run failed</h2><p class="err">${esc(r.error)}</p>`; return; }
   // claims vs reality
   if(r.scope){
-    const quotes=(r.advertised_tools||[]).map(t=>`<div><code>${esc(t.name)}</code> “${esc(t.description)}”</div>`).join('');
+    const hl=d=>esc(d).replace(/(&lt;\s*(important|system|instructions?|secret)\s*&gt;[\s\S]*?(&lt;\/\s*\2\s*&gt;|$))/gi,'<span class="poison">$1</span>');
+    const quotes=(r.advertised_tools||[]).map(t=>`<div><code>${esc(t.name)}</code> “${hl(t.description)}”</div>`).join('');
     $('claimsbody').innerHTML=`<div class="claims-quote">${quotes||'<span class=muted>no descriptions</span>'}</div>
     <div class="diff"><div class="hdr"><div>Area</div><div>What it claims</div><div>What it actually did</div><div>Result</div></div>
     ${r.scope.map(x=>`<div class="r ${x.status}">

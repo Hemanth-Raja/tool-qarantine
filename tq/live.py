@@ -28,7 +28,8 @@ class LiveRun:
         self.events = []
         self.runtime_files = 0
         self.status = "running"
-        self.flusher = None   # set by a Tailer: drain pending evidence on demand
+        self.flusher = None
+        self.declared = ""    # the tool's own descriptions, once known   # set by a Tailer: drain pending evidence on demand
         self._lock = threading.Lock()
 
     def emit(self, kind, level, title, detail="", **extra):
@@ -140,7 +141,7 @@ class Tailer(threading.Thread):
                 continue
             if self.normalise:
                 line = self.normalise(line)
-            ev, is_noise = classify_strace_line(line)
+            ev, is_noise = classify_strace_line(line, self.live.declared)
             if is_noise:
                 noise += 1
             if ev:
@@ -164,7 +165,13 @@ class Tailer(threading.Thread):
                 rec = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            ev = classify_sink_event(rec)
+            from .analyzer import declared_hosts, visible_text
+            ev = classify_sink_event(rec, declared_hosts(visible_text(self.live.declared)))
+            key = ("sink", rec.get("kind"), rec.get("name") or rec.get("host") or rec.get("sni"),
+                   rec.get("path"))
+            if ev and key in self._seen:
+                continue  # A + AAAA lookups for one name, retries
+            self._seen.add(key)
             if ev:
                 self.live.emit(ev["kind"], ev["level"], ev["title"], ev["detail"], source="sinkhole")
         self._sink_seen = len(lines)

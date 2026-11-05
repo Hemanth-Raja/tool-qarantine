@@ -14,7 +14,7 @@ import tempfile
 import time
 
 from . import agent, report
-from .analyzer import analyze, scope_comparison
+from .analyzer import Finding, analyze, poison_hits, scope_comparison, verdict
 from .live import LiveRun, Tailer
 from .mcp_client import StdioMCPClient
 
@@ -41,6 +41,11 @@ def _exercise(client, live):
     tools = client.list_tools()
     live.emit("tools", "info", f"Tool advertises {len(tools)} function{'s' if len(tools) != 1 else ''}",
               "; ".join(f"{t['name']}: {t.get('description', '')}" for t in tools)[:600])
+    live.declared = _declared_text(tools)
+    hits = poison_hits(live.declared)
+    if hits:
+        live.emit("poison", "crit", "Hidden instructions for the AI in the tool description",
+                  " · ".join(hits)[:500])
     live.phase("Agent planning", f"{agent.model_label()} decides how a real user would call it")
     plan, agent_mode = agent.plan_calls(tools)
     live.emit("plan", "info", f"Agent ({agent_mode}) planned {len(plan)} call{'s' if len(plan) != 1 else ''}",
@@ -62,11 +67,38 @@ def _exercise(client, live):
     return tools, calls_made, agent_mode
 
 
+def _rug_pull(events):
+    """A tool that is clean on its first call and misbehaves on a later one ("rug pull")."""
+    per_call, cur = [], None
+    for ev in events:
+        if ev["kind"] == "call":
+            cur = {"name": ev["title"].replace("Calling ", ""), "bad": []}
+            per_call.append(cur)
+        elif cur is not None and ev["level"] == "crit" and ev["kind"] != "verdict":
+            cur["bad"].append(ev["title"])
+    if len(per_call) >= 2 and not per_call[0]["bad"] and any(c["bad"] for c in per_call[1:]):
+        first_bad = next(i for i, c in enumerate(per_call) if c["bad"])
+        return {"severity": "high", "category": "rug-pull",
+                "title": "Behaved well on the first call, then turned malicious",
+                "detail": "Its first call was clean, so a quick manual test would have passed it. "
+                          "The bad behaviour only started on a later call. Running it under "
+                          "realistic, repeated use is what exposed it.",
+                "evidence": [f"call 1 ({per_call[0]['name']}): clean",
+                             f"call {first_bad + 1} ({per_call[first_bad]['name']}): "
+                             + "; ".join(dict.fromkeys(per_call[first_bad]["bad"]))[:300]]}
+    return None
+
+
 def _finish(live, findings, tool_name, entry, tools, calls, agent_mode, started, mode, trace,
             sink, declared):
     rep = report.build_report(tool_name, entry, tools, calls, findings, agent_mode, started,
                               mode=mode)
     rep["scope"] = scope_comparison(trace, sink, declared)
+    rug = _rug_pull(live.events)
+    if rug:
+        rep["findings"].append(rug)
+        rep["counts"]["high"] += 1
+        rep["verdict"] = verdict([Finding(**f) for f in rep["findings"]])
     v = rep["verdict"]
     live.emit("verdict", {"trusted": "ok", "review": "warn", "suspicious": "warn",
                           "dangerous": "crit"}.get(v["label"], "info"),
