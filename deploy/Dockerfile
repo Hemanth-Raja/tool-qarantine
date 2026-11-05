@@ -2,7 +2,7 @@
 # Docker daemon to create/destroy sandboxes, so run it with the docker socket mounted:
 #   docker run -p 8000:8000 -v /var/run/docker.sock:/var/run/docker.sock tq-app
 FROM python:3.12-slim
-RUN apt-get update && apt-get install -y --no-install-recommends docker.io ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends docker-cli ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY requirements.txt .

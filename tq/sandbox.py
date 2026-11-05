@@ -15,6 +15,7 @@ Everything is torn down and removed at the end of the run, pass or fail.
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import tempfile
 import time
@@ -38,6 +39,15 @@ class SandboxRun:
         self.net = f"tq-net-{self.rid}"
         self.sink_name = f"tq-sink-{self.rid}"
         self.audit_dir = tempfile.mkdtemp(prefix="tq-audit-")
+        self.stage_dir = None
+        if os.environ.get("TQ_STAGE_TOOL"):
+            # When the orchestrator itself runs in a container, bind-mount sources are
+            # resolved on the host. Stage the tool under TMPDIR, which is mounted at the
+            # same path on both sides (see deploy/docker-compose.yml).
+            self.stage_dir = tempfile.mkdtemp(prefix="tq-tool-")
+            shutil.copytree(self.tool_dir, self.stage_dir, dirs_exist_ok=True)
+            os.chmod(self.stage_dir, 0o755)
+            self.tool_dir = self.stage_dir
         os.chmod(self.audit_dir, 0o777)  # uid 1000 in the sandbox writes trace.log here
         self.sink_ip = None
 
@@ -101,3 +111,5 @@ class SandboxRun:
             os.rmdir(self.audit_dir)
         except OSError:
             pass
+        if self.stage_dir:
+            shutil.rmtree(self.stage_dir, ignore_errors=True)
