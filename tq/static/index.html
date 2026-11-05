@@ -2,56 +2,130 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Tool Quarantine</title><link rel="stylesheet" href="/static/app.css"></head>
 <body><div class="wrap">
-<header class="top"><div class="logo">TQ</div>
-  <div><h1>Tool Quarantine</h1></div></header>
-<p class="tag">Run untrusted MCP servers &amp; agent tools in a disposable sandbox. Watch what they
-  actually touch. Decide if you trust them.</p>
+<nav class="top"><div class="logo">TQ</div><div class="brand">Tool Quarantine</div><div class="sp"></div>
+  <span class="pill">agent: <b id="agentname">…</b></span>
+  <span class="pill">runs on <b>Vultr</b></span></nav>
+
+<h1>Don't install an agent tool <span class="grad">until you've watched it run.</span></h1>
+<p class="lede">Tool Quarantine runs an untrusted MCP server inside a disposable, network-sinkholed sandbox,
+  lets an AI agent use it like a real user would, and records every file it opens and every host it
+  tries to reach. Then it shows you what the tool <i>claims</i> next to what it <i>actually did</i>.</p>
+
+<div class="steps">
+  <div class="step"><span class="n">01</span><b>Quarantine</b><span>Fresh container: no internet route, read-only disk, decoy credentials planted.</span></div>
+  <div class="step"><span class="n">02</span><b>Exercise</b><span>An agent on Vultr Serverless Inference calls the tool with realistic inputs.</span></div>
+  <div class="step"><span class="n">03</span><b>Observe</b><span>strace on every syscall; a sinkhole answers DNS and captures any outbound data.</span></div>
+  <div class="step"><span class="n">04</span><b>Decide</b><span>Claims vs. reality, a trust score, and an approve / reject decision. Box destroyed.</span></div>
+</div>
 
 <div class="card">
-  <div class="runbar">
-    <select id="tool">
-      <option value="python /tool/unit_converter.py|unit-converter">unit-converter (honest)</option>
-      <option value="python /tool/notes_search.py|notes-search">notes-search (over-reaching)</option>
-      <option value="python /tool/json_formatter.py|json-formatter">json-formatter (malicious)</option>
-    </select>
-    <button id="go">Quarantine &amp; run</button>
-    <span id="status" class="muted"></span>
+  <h2>Try a sample tool</h2>
+  <p class="sub">Three MCP servers that all look harmless from their descriptions.</p>
+  <div class="grid3">
+    <div class="tool"><span class="kind k-honest">Honest</span><span class="name">unit-converter</span>
+      <span class="claim">"Convert a value between units. Pure computation; does not read files or use the network."</span>
+      <button onclick="runSample('python /tool/unit_converter.py','unit-converter',this)">Quarantine &amp; run</button></div>
+    <div class="tool"><span class="kind k-over">Over-reaching</span><span class="name">notes-search</span>
+      <span class="claim">"Search the user's markdown notes in the project workspace. Read-only, workspace only."</span>
+      <button onclick="runSample('python /tool/notes_search.py','notes-search',this)">Quarantine &amp; run</button></div>
+    <div class="tool"><span class="kind k-mal">Malicious</span><span class="name">json-formatter</span>
+      <span class="claim">"Pretty-print a JSON string with a given indent. Pure formatting."</span>
+      <button onclick="runSample('python /tool/json_formatter.py','json-formatter',this)">Quarantine &amp; run</button></div>
   </div>
 </div>
 
+<div class="card" id="byo">
+  <h2>Quarantine your own tool</h2>
+  <p class="sub">A Python MCP server (stdio). It runs offline, so it can use the standard library, the
+    official <code>mcp</code> SDK (pre-installed) or vendored dependencies. Your code only ever runs inside the sandbox.</p>
+  <div class="tabs"><button class="on" data-tab="gh">GitHub link</button><button data-tab="zip">Upload .zip</button></div>
+  <div id="tab-gh" class="row">
+    <input id="ghurl" placeholder="https://github.com/owner/repo  (or …/tree/main/path/to/server)" style="flex:3;min-width:260px">
+  </div>
+  <div id="tab-zip" class="row hide">
+    <label class="drop" id="drop"><input type="file" id="zipfile" accept=".zip" class="hide">
+      <span id="droptext">Drop a .zip here or click to choose</span></label>
+  </div>
+  <div class="row" style="margin-top:10px">
+    <input id="upname" placeholder="name (optional)" style="flex:1;min-width:150px">
+    <input id="upentry" placeholder="entry command (auto-detected), e.g. python /tool/server.py" style="flex:2;min-width:240px">
+    <button id="upgo">Quarantine &amp; run</button>
+  </div>
+  <div id="upmsg" class="sub" style="margin:10px 0 0"></div>
+</div>
+
 <div class="card">
-  <table><thead><tr><th>Tool</th><th>Verdict</th><th>Score</th><th>Findings</th><th>Decision</th><th></th></tr></thead>
-  <tbody id="rows"><tr><td colspan="6" class="empty">No runs yet — quarantine a tool above.</td></tr></tbody></table>
+  <div class="row" style="margin-bottom:6px"><h2>Recent runs</h2><span class="sp" style="flex:1"></span>
+    <span class="muted" style="font-size:13px">click a run for the full trust report</span></div>
+  <div style="overflow-x:auto"><table><thead><tr><th>Tool</th><th>Status</th><th>Verdict</th><th>Score</th><th>Findings</th><th>Decision</th><th>When</th></tr></thead>
+  <tbody id="rows"><tr><td colspan="7" class="empty">No runs yet. Quarantine a tool above.</td></tr></tbody></table></div>
 </div>
 </div>
 <script>
-const sev = c => `${c.critical||0} crit · ${c.high||0} high · ${c.medium||0} med`;
+const $=id=>document.getElementById(id);
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+const sev=c=>c?`${c.critical||0} crit · ${c.high||0} high · ${c.medium||0} med`:'—';
+function ago(t){if(!t)return'';const s=Date.now()/1000-t;if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+'m ago';
+  if(s<86400)return Math.floor(s/3600)+'h ago';return Math.floor(s/86400)+'d ago'}
+let polling=null;
 async function load(){
-  const runs = await (await fetch('/api/runs')).json();
-  const tb = document.getElementById('rows');
-  if(!runs.length){tb.innerHTML='<tr><td colspan=6 class=empty>No runs yet — quarantine a tool above.</td></tr>';return;}
-  tb.innerHTML = runs.map(r=>{
-    const v=r.verdict, d=(r.decision&&r.decision.state)||'pending';
-    return `<tr class=row onclick="location.href='/run/${r.id}'">
-      <td>${r.tool}</td>
-      <td><span class="badge b-${v.label}">${v.label}</span></td>
-      <td class=score>${v.score}</td>
-      <td class=muted>${sev(r.counts||{})}</td>
-      <td><span class="badge b-${d}">${d}</span></td>
-      <td>→</td></tr>`}).join('');
+  const runs=await (await fetch('/api/runs')).json();
+  const tb=$('rows');
+  if(!runs.length){tb.innerHTML='<tr><td colspan=7 class=empty>No runs yet. Quarantine a tool above.</td></tr>';return}
+  tb.innerHTML=runs.slice(0,30).map(r=>{
+    const v=r.verdict, d=(r.decision&&r.decision.state)||'pending', st=r.status||'done';
+    return `<tr class=click onclick="location.href='/run/${r.id}'">
+      <td><span class=mono>${esc(r.tool)}</span>${r.source&&r.source!=='built-in sample'?`<div class=dim style="font-size:12px">${esc(r.source)}</div>`:''}</td>
+      <td><span class="badge b-${st==='done'?'ok':st}">${st==='running'?'<span class="dot live"></span>':''}${st}</span></td>
+      <td>${v?`<span class="badge b-${v.label}">${v.label}</span>`:'—'}</td>
+      <td class=score>${v?v.score:'—'}</td>
+      <td class=muted>${sev(r.counts)}</td>
+      <td>${v?`<span class="badge b-${d}">${d}</span>`:''}</td>
+      <td class=dim>${ago(r.started)}</td></tr>`}).join('');
+  clearTimeout(polling);
+  if(runs.some(r=>r.status==='running'))polling=setTimeout(load,1500);
 }
-document.getElementById('go').onclick = async ()=>{
-  const [entry,name] = document.getElementById('tool').value.split('|');
-  const btn=document.getElementById('go'), st=document.getElementById('status');
-  btn.disabled=true; st.innerHTML='<span class=spin></span> building sandbox, exercising tool, tearing down…';
+async function start(body){
+  const res=await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  const j=await res.json();
+  if(!res.ok)throw new Error(j.detail||'could not start the run');
+  location.href='/run/'+j.id;
+}
+async function runSample(entry,name,btn){
+  btn.disabled=true;btn.innerHTML='<span class=spin></span> starting…';
+  try{await start({entry,name})}catch(e){btn.disabled=false;btn.textContent='Quarantine & run';alert(e.message)}
+}
+// ---- bring your own tool
+let tab='gh', zipData=null;
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{
+  tab=b.dataset.tab;document.querySelectorAll('.tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  $('tab-gh').classList.toggle('hide',tab!=='gh');$('tab-zip').classList.toggle('hide',tab!=='zip')});
+const drop=$('drop');
+function pick(f){if(!f)return;zipData=f;$('droptext').textContent=`${f.name} · ${(f.size/1024).toFixed(0)} KB`;
+  if(!$('upname').value)$('upname').value=f.name.replace(/\.zip$/i,'')}
+$('zipfile').onchange=e=>pick(e.target.files[0]);
+['dragenter','dragover'].forEach(k=>drop.addEventListener(k,e=>{e.preventDefault();drop.classList.add('hot')}));
+['dragleave','drop'].forEach(k=>drop.addEventListener(k,e=>{e.preventDefault();drop.classList.remove('hot')}));
+drop.addEventListener('drop',e=>pick(e.dataTransfer.files[0]));
+$('upgo').onclick=async()=>{
+  const msg=$('upmsg'),btn=$('upgo'),name=$('upname').value.trim(),entry=$('upentry').value.trim();
+  msg.className='sub';btn.disabled=true;
   try{
-    const res = await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({entry,name})});
-    const j = await res.json();
-    st.textContent = res.ok ? `done — ${j.verdict.label}` : (j.detail||'error');
-    await load();
-  }catch(e){st.textContent='error: '+e}
-  btn.disabled=false;
+    let res;
+    if(tab==='gh'){
+      const url=$('ghurl').value.trim(); if(!url)throw new Error('paste a GitHub link first');
+      msg.innerHTML='<span class=spin></span> downloading from GitHub…';
+      res=await fetch('/api/tools/github',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({url,name,entry})});
+    }else{
+      if(!zipData)throw new Error('choose a .zip first');
+      msg.innerHTML='<span class=spin></span> uploading…';
+      res=await fetch(`/api/tools/upload?name=${encodeURIComponent(name)}&entry=${encodeURIComponent(entry)}`,{method:'POST',headers:{'content-type':'application/zip'},body:zipData});
+    }
+    const t=await res.json(); if(!res.ok)throw new Error(t.detail||'upload failed');
+    msg.innerHTML=`Unpacked ${t.file_count} files from ${esc(t.source)} · entry <code>${esc(t.entry)}</code> · starting the sandbox…`;
+    await start({tool_id:t.id,name:t.name});
+  }catch(e){msg.className='err';msg.textContent=e.message;btn.disabled=false}
 };
+fetch('/api/config').then(r=>r.json()).then(c=>{$('agentname').textContent=c.agent;if(!c.uploads)$('byo').classList.add('hide')});
 load();
 </script></body></html>

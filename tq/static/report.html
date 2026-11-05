@@ -1,58 +1,184 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Trust report — Tool Quarantine</title><link rel="stylesheet" href="/static/app.css"></head>
+<title>Trust report · Tool Quarantine</title><link rel="stylesheet" href="/static/app.css"></head>
 <body><div class="wrap">
-<header class="top"><div class="logo">TQ</div><div><h1>Trust report</h1></div></header>
-<p class="tag"><a href="/">← all runs</a></p>
-<div id="app"><p class="empty"><span class="spin"></span> loading…</p></div>
+<nav class="top"><a href="/" class="logo">TQ</a><a href="/" class="brand" style="color:var(--ink)">Tool Quarantine</a>
+  <div class="sp"></div><a href="/" class="pill">← all runs</a></nav>
+
+<div class="rhead">
+  <div><div class="muted" style="font-size:12px;letter-spacing:.6px;text-transform:uppercase">Trust report</div>
+    <h1 id="toolname">…</h1><div class="meta" id="meta"></div></div>
+  <div class="sp"></div>
+  <span id="status"></span>
+  <button class="ghost hide" id="replay">↻ Replay run</button>
+</div>
+<div class="contain">
+  <span>No route to the internet</span><span>DNS + HTTP sinkhole</span><span>Read-only filesystem</span>
+  <span>All capabilities dropped</span><span>Decoy credentials planted</span><span>Destroyed after run</span>
+</div>
+
+<div class="grid2">
+  <div class="card tight">
+    <div class="feedhead"><h2>Live activity</h2><span class="sp"></span>
+      <span class="dim" style="font-size:12px" id="noise"></span></div>
+    <div class="feed" id="feed"></div>
+  </div>
+  <div>
+    <div class="card" id="vcard">
+      <div class="verdict-hero">
+        <div class="ring" id="ring" style="--v:0;--c:var(--line2)"><div class="inner" id="score">…</div></div>
+        <div><div class="muted" style="font-size:12px;letter-spacing:.6px">VERDICT</div>
+          <div class="vlabel" id="vlabel" style="color:var(--muted)">Observing</div>
+          <div class="muted" id="vsum" style="font-size:13.5px">The tool is running in the sandbox. Watch the feed.</div></div>
+      </div>
+      <div class="counters">
+        <div class="ctr" id="c-files"><div class="v">0</div><div class="l">files it read</div></div>
+        <div class="ctr" id="c-secrets"><div class="v">0</div><div class="l">credentials touched</div></div>
+        <div class="ctr" id="c-net"><div class="v">0</div><div class="l">network attempts</div></div>
+        <div class="ctr" id="c-exfil"><div class="v">0</div><div class="l">exfiltrations blocked</div></div>
+      </div>
+    </div>
+    <div class="card" id="approval">
+      <h2>Approval</h2>
+      <p class="sub" id="dec">Current decision: <span class="badge b-pending">pending</span></p>
+      <div class="row">
+        <input id="note" placeholder="reason (optional)" style="flex:1;min-width:160px">
+        <button class="ok" onclick="decide('approve')">Approve</button>
+        <button class="bad" onclick="decide('reject')">Reject</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card hide" id="claims">
+  <h2>Claims vs. reality</h2>
+  <p class="sub">What the tool says about itself in its MCP description, next to what the sandbox saw it do.</p>
+  <div id="claimsbody"></div>
+</div>
+<div class="card hide" id="findings"></div>
+<div class="card hide" id="details"></div>
 </div>
 <script>
+const $=id=>document.getElementById(id);
+const rid=location.pathname.split('/').pop();
 const CLR={trusted:'var(--trusted)',review:'var(--review)',suspicious:'var(--suspicious)',dangerous:'var(--dangerous)'};
-const rid = location.pathname.split('/').pop();
-function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
-async function load(){
-  const r = await (await fetch('/api/runs/'+rid)).json();
-  const v=r.verdict, d=r.decision||{state:'pending'};
-  const dur=(r.finished-r.started)||0;
-  document.getElementById('app').innerHTML = `
-  <div class="card verdict-hero">
-    <div class="ring" style="--v:${v.score};--c:${CLR[v.label]}"><div class="inner">${v.score}</div></div>
-    <div><div style="font-size:13px" class="muted">VERDICT</div>
-      <div style="font-size:26px;font-weight:800;text-transform:capitalize;color:${CLR[v.label]}">${v.label}</div>
-      <div class="muted">${esc(v.summary)}</div></div>
-  </div>
-  <div class="card">
-    <div class="kv">
-      <div class="k">Tool</div><div>${esc(r.tool)} — <span class=muted>${esc(r.entry)}</span></div>
-      <div class="k">Sandbox</div><div>${r.mode} mode · exercised by <b>${esc(r.agent)}</b> agent · ${dur.toFixed(1)}s · destroyed after run</div>
-      <div class="k">Advertised</div><div>${r.advertised_tools.map(t=>`<code>${esc(t.name)}</code>`).join(' ')||'—'}</div>
-      <div class="k">Calls made</div><div>${r.calls_made.map(c=>`<code>${esc(c.name)}</code>`).join(' ')||'—'}</div>
-    </div>
-  </div>
-  <div class="card">
-    <h3 style="margin-top:0">What it did (${r.findings.length} finding${r.findings.length==1?'':'s'})</h3>
-    ${r.findings.length?r.findings.map(f=>`
-      <div class="finding ${f.severity}">
-        <h3><span class="sev ${f.severity}">${f.severity}</span> ${esc(f.title)}</h3>
-        <p>${esc(f.detail)}</p>
-        ${f.evidence.length?`<div class="ev">${f.evidence.map(esc).join('\n')}</div>`:''}
-      </div>`).join(''):'<p class="muted">Nothing beyond its declared scope. Clean.</p>'}
-  </div>
-  <div class="card">
-    <h3 style="margin-top:0">Approval</h3>
-    <p class="muted">Current decision: <span class="badge b-${d.state}">${d.state}</span> ${d.note?('— '+esc(d.note)):''}</p>
-    <div class="runbar">
-      <input id="note" placeholder="reason (optional)" style="flex:1;min-width:200px">
-      <button class="ok" onclick="decide('approve')">Approve</button>
-      <button class="bad" onclick="decide('reject')">Reject</button>
-    </div>
-  </div>`;
+const ICON={phase:'◆',tools:'▤',plan:'✦',call:'→',result:'←',file:'▸',secret:'⚿',dns:'◎',net:'⇄',exfil:'⛔',exec:'⚡',write:'✎',verdict:'■',error:'✖'};
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+let report=null, queue=[], shown=0, cursor=0, playing=false, live=false, lastT=0, counts={};
+
+function resetFeed(){ $('feed').innerHTML='<div class="cursor" id="cur"></div>'; counts={files:0,secrets:0,net:0,exfil:0};
+  setCounters(); lastT=0; shown=0; hideVerdict(); }
+function setCounters(){
+  for(const k of ['files','secrets','net','exfil']){const el=$('c-'+k); el.querySelector('.v').textContent=counts[k]||0;
+    el.classList.toggle('hot',(k==='secrets'||k==='exfil')&&counts[k]>0);
+    el.classList.toggle('warm',(k==='files'||k==='net')&&counts[k]>0);}
+}
+function bump(ev){
+  if(ev.kind==='file'&&ev.title.startsWith('Read'))counts.files++;
+  if(ev.kind==='secret'){counts.files++;counts.secrets++}
+  if(ev.kind==='net'||ev.kind==='dns')counts.net++;
+  if(ev.kind==='exfil'){counts.net++;counts.exfil++}
+  setCounters();
+}
+function addEvent(ev, animate){
+  const d=document.createElement('div');
+  d.className=`ev ${ev.level} ${ev.kind}`+(animate&&ev.level==='crit'?' flash':'');
+  if(!animate)d.style.animation='none';
+  d.innerHTML=`<span class=t>+${ev.t.toFixed(2)}s</span><span class=ic>${ICON[ev.kind]||'·'}</span><span class=ti>${esc(ev.title)}</span>`+
+    (ev.detail?`<span class=de>${esc(ev.detail)}</span>`:'');
+  const f=$('feed'), cur=$('cur'); f.insertBefore(d,cur); f.scrollTop=f.scrollHeight;
+  bump(ev); shown++;
+  if(ev.kind==='verdict'&&report&&report.verdict)showVerdict(report.verdict);
+}
+// paced playback, so a 2-second run reads like a story
+function pump(){
+  if(playing)return; playing=true;
+  (function step(){
+    if(!queue.length){playing=false; maybeFinish(); return}
+    const ev=queue.shift(); addEvent(ev,true);
+    const nxt=queue[0]; let gap=nxt?Math.min(900,Math.max(170,(nxt.t-ev.t)*1000)):0;
+    if(ev.level==='crit')gap=Math.max(gap,650);
+    if(ev.kind==='phase'||ev.kind==='plan')gap=Math.max(gap,300);
+    setTimeout(step,gap);
+  })();
+}
+async function poll(){
+  try{
+    const j=await (await fetch(`/api/runs/${rid}/live?after=${cursor}`)).json();
+    cursor+=j.events.length; queue.push(...j.events); pump();
+    if(j.runtime_files)$('noise').textContent=`${j.runtime_files} runtime/library syscalls filtered`;
+    if(j.running){setTimeout(poll,300)}else{live=false; await fetchReport(); maybeFinish()}
+  }catch(e){setTimeout(poll,1000)}
+}
+async function fetchReport(){ report=await (await fetch('/api/runs/'+rid)).json(); }
+function maybeFinish(){
+  if(live||playing||queue.length||!report||report.status==='running')return;
+  setStatus(report); renderAll(report); if(report.verdict)showVerdict(report.verdict);
+  $('replay').classList.remove('hide');
+}
+function setStatus(r){
+  const st=r.status||'done';
+  $('status').innerHTML=st==='running'?'<span class="badge b-running"><span class="dot live"></span>running in sandbox</span>'
+    : st==='error'?'<span class="badge b-error">run failed</span>':'<span class="badge b-ok">sandbox destroyed</span>';
+}
+function hideVerdict(){ $('ring').style.cssText='--v:0;--c:var(--line2)'; $('score').textContent='…';
+  $('vlabel').textContent='Observing'; $('vlabel').style.color='var(--muted)';
+  $('vsum').textContent='The tool is running in the sandbox. Watch the feed.'; }
+function showVerdict(v){ $('ring').style.cssText=`--v:${v.score};--c:${CLR[v.label]}`; $('score').textContent=v.score;
+  $('vlabel').textContent=v.label; $('vlabel').style.color=CLR[v.label]; $('vsum').textContent=v.summary; }
+function header(r){
+  $('toolname').textContent=r.tool||'tool'; document.title=`${r.tool} · Trust report`;
+  $('meta').innerHTML=[r.source&&esc(r.source), r.entry&&`<code>${esc(r.entry)}</code>`, r.agent&&('agent: '+esc(r.agent)),
+    r.mode&&esc(r.mode+' sandbox'), r.finished&&((r.finished-r.started).toFixed(1)+'s')].filter(Boolean).join(' · ');
+  const d=r.decision||{state:'pending'};
+  $('dec').innerHTML=`Current decision: <span class="badge b-${d.state}">${d.state}</span> ${d.note?('· '+esc(d.note)):''}`;
+}
+const CLAIM_TXT={declared:'Says it does this',denied:'Says it does NOT',silent:'Not mentioned'};
+const STATUS_TXT={ok:'as claimed',unused:'not used',unexpected:'unexpected',overreach:'over-reach'};
+function renderAll(r){
+  header(r);
+  if(r.status==='error'){ $('findings').classList.remove('hide');
+    $('findings').innerHTML=`<h2>Run failed</h2><p class="err">${esc(r.error)}</p>`; return; }
+  // claims vs reality
+  if(r.scope){
+    const quotes=(r.advertised_tools||[]).map(t=>`<div><code>${esc(t.name)}</code> “${esc(t.description)}”</div>`).join('');
+    $('claimsbody').innerHTML=`<div class="claims-quote">${quotes||'<span class=muted>no descriptions</span>'}</div>
+    <div class="diff"><div class="hdr"><div>Area</div><div>What it claims</div><div>What it actually did</div><div>Result</div></div>
+    ${r.scope.map(x=>`<div class="r ${x.status}">
+      <div class="area"><b>${esc(x.label)}</b><span>${esc(x.hint)}</span></div>
+      <div class="claimcol"><span class="badge b-${x.claim}">${CLAIM_TXT[x.claim]}</span>${x.quote?`<div class=q>“${esc(x.quote)}”</div>`:''}</div>
+      <div class="actcol">${x.count?`<span class="${x.status==='overreach'?'minus':'plus'}">${x.status==='overreach'?'!':'+'}</span>${x.count} observed`:'<span class=dim>nothing</span>'}
+        ${x.count?`<div class=acts>${x.actual.map(esc).join('<br>')}${x.count>x.actual.length?'<br>…':''}</div>`:''}</div>
+      <div><span class="badge b-${x.status}">${x.status==='ok'&&!x.count?'clean':STATUS_TXT[x.status]}</span></div></div>`).join('')}</div>`;
+    $('claims').classList.remove('hide');
+  }
+  // findings
+  const fs=r.findings||[];
+  $('findings').innerHTML=`<h2>Findings (${fs.length})</h2>`+(fs.length?fs.map(f=>`
+    <div class="finding ${f.severity}"><h3><span class="sev ${f.severity}">${f.severity}</span> ${esc(f.title)}</h3>
+    <p>${esc(f.detail)}</p>${f.evidence.length?`<div class="evi">${f.evidence.map(esc).join('\n')}</div>`:''}</div>`).join('')
+    :'<p class="muted">Nothing beyond its declared scope. Clean.</p>');
+  $('findings').classList.remove('hide');
+  // calls
+  $('details').innerHTML=`<h2>What the agent asked it to do</h2><p class="sub">Calls chosen by ${esc(r.agent)} from the tool's advertised functions.</p>
+    <div class="kv">${(r.calls_made||[]).map(c=>`<div class=k><code>${esc(c.name)}</code></div>
+    <div><div class="mono dim" style="font-size:12px">${esc(JSON.stringify(c.arguments))}</div>
+    <div class="evi" style="margin-top:4px">${esc(c.output||(c.ok?'(no output)':'(failed)'))}</div></div>`).join('')||'<div class=muted>no calls</div>'}</div>`;
+  $('details').classList.remove('hide');
 }
 async function decide(state){
-  const note=document.getElementById('note').value;
   await fetch('/api/runs/'+rid+'/decide',{method:'POST',headers:{'content-type':'application/json'},
-    body:JSON.stringify({state,note})});
-  load();
+    body:JSON.stringify({state,note:$('note').value})});
+  await fetchReport(); header(report);
 }
-load();
+$('replay').onclick=()=>{ if(!report||!report.timeline)return; resetFeed();
+  queue=report.timeline.map(e=>({...e})); pump(); };
+(async function init(){
+  resetFeed();
+  await fetchReport(); header(report); setStatus(report);
+  if(report.status==='running'){ live=true; report=null; poll(); }
+  else{ (report.timeline||[]).forEach(e=>addEvent(e,false));
+    if(report.runtime_files)$('noise').textContent=`${report.runtime_files} runtime/library syscalls filtered`;
+    maybeFinish(); }
+})();
 </script></body></html>

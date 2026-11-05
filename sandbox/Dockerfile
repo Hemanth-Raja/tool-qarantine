@@ -24,7 +24,8 @@ RUN --mount=type=secret,id=extra_ca,required=false \
 
 RUN useradd --create-home --uid 1000 --shell /bin/bash dev
 COPY decoys/ /home/dev/
-RUN chown -R dev:dev /home/dev && chmod 600 /home/dev/.aws/credentials /home/dev/.ssh/id_ed25519
+COPY workspace/ /workspace/
+RUN chown -R dev:dev /home/dev /workspace && chmod 600 /home/dev/.aws/credentials /home/dev/.ssh/id_ed25519
 
 COPY entrypoint.sh /usr/local/bin/tq-entrypoint
 RUN chmod +x /usr/local/bin/tq-entrypoint

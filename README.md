@@ -82,9 +82,30 @@ ssh root@<vm-ip> 'bash -s' < deploy/provision.sh      # installs Docker, builds 
 See `deploy/docker-compose.yml`. The control-plane container mounts the host Docker socket so it
 can build and destroy sandboxes.
 
+## What the report shows
+
+- **Live activity feed.** A run starts in the background and the report page opens straight
+  away. While the tool runs, the orchestrator tails the sandbox's strace log and the
+  sinkhole's log and streams classified events: sandbox phases, the agent's plan, each call
+  and result, credential reads, reads outside the workspace, DNS lookups, and the blocked
+  exfiltration POST with its captured payload. Interpreter/library noise is filtered out.
+  The timeline is saved with the report, and **Replay run** plays it back for demos.
+- **Claims vs. reality.** The tool's own MCP descriptions are parsed into a claimed scope per
+  area (workspace files, home directory, credentials, network, other programs, writes:
+  *says it does this* / *says it does not* / *not mentioned*), shown next to what the sandbox
+  observed, with each area marked *as claimed*, *unexpected* or *over-reach*.
+- Findings with evidence, the agent's calls and outputs, and the approve / reject decision.
+
 ## Submitting your own tool
 
-Point a run at any directory containing an MCP stdio server:
+From the dashboard: paste a public GitHub link (`https://github.com/owner/repo`, optionally
+`/tree/<branch>/<path>`) or drop a `.zip`. The entry point is auto-detected (an MCP server such
+as `server.py` / a FastMCP script) or you can give it, e.g. `python /tool/server.py`. The code is
+only ever run inside the sandbox, which has no network, so tools must be self-contained: Python
+stdlib, the official `mcp` SDK (pre-installed in the sandbox image), or vendored dependencies.
+Set `TQ_ALLOW_UPLOADS=0` to turn uploads off; `TQ_MAX_PARALLEL` (default 2) caps concurrent runs.
+
+From the CLI, point a run at any directory containing an MCP stdio server:
 
 ```bash
 python -m tq.cli run /path/to/tool 'python /tool/server.py' --name my-tool --save
@@ -106,7 +127,7 @@ sinkhole/   the no-egress DNS/HTTP/TLS capture service
 samples/    three sample MCP tools: honest, over-reaching, malicious
 tq/         orchestrator: mcp_client, sandbox, analyzer, agent, report, runner, server, cli
 deploy/     Dockerfile, docker-compose, Vultr provisioning
-tests/      analyzer unit tests + Docker integration tests
+tests/      analyzer, live-feed, claims and upload tests + Docker integration tests
 ```
 
 ## Safety note

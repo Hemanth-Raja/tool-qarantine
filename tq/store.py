@@ -6,6 +6,7 @@ import time
 import uuid
 
 _DIR = os.environ.get("TQ_DATA_DIR", os.path.join(os.path.dirname(__file__), "..", "data"))
+DATA_DIR = _DIR
 _lock = threading.Lock()
 
 

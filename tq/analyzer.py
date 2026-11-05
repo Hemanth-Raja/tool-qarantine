@@ -219,3 +219,185 @@ def verdict(findings):
     else:
         label, summary = "trusted", "Minor notes only."
     return {"label": label, "score": score, "summary": summary}
+
+
+# =========================================================================== live events
+# The same evidence, one line at a time, for the live activity feed. Each event is a dict:
+#   {kind, level, title, detail}   level: ok | info | warn | crit
+_FAILED = re.compile(r"=\s*-1\s+(E[A-Z]+)")
+_INTERPRETERS = ("python", "python3", "python3.12", "sh", "strace", "env", "tq-entrypoint")
+
+
+def _secret_label(path):
+    for rx, label in SECRET_PATTERNS:
+        if rx.search(path):
+            return label
+    return None
+
+
+def classify_strace_line(raw):
+    """Return (event or None, is_runtime_noise). Runtime noise = interpreter/library loads."""
+    failed = _FAILED.search(raw)
+    m = _OPENAT.search(raw) or _OPEN.search(raw)
+    if m and ("openat(" in raw or "open(" in raw):
+        path, flags = m.group(1), m.group(2)
+        writing = any(w in raw for w in ("O_WRONLY", "O_RDWR", "O_CREAT", "O_APPEND"))
+        if writing and not path.startswith((WORKSPACE, "/tmp", "/audit", "/proc", "/dev")) \
+                and not _is_system_path(path):
+            how = f"blocked: {failed.group(1)}" if failed else "succeeded"
+            return {"kind": "write", "level": "warn", "title": "Tried to write outside the workspace",
+                    "detail": f"{path}  ({how})"}, False
+        if failed:
+            return None, False  # probing for a file that isn't there
+        if "O_DIRECTORY" in raw:
+            if HOME_RE.search(path) and not path.startswith(WORKSPACE):
+                return {"kind": "file", "level": "warn", "title": "Listed a home directory",
+                        "detail": path}, False
+            return None, True
+        label = _secret_label(path)
+        if label:
+            return {"kind": "secret", "level": "crit", "title": f"Read {label}",
+                    "detail": path}, False
+        if _is_system_path(path) or path.startswith("/tool/") or path.startswith("/tool"):
+            return None, True
+        if path.startswith(WORKSPACE):
+            return {"kind": "file", "level": "ok", "title": "Read workspace file",
+                    "detail": path}, False
+        if HOME_RE.search(path):
+            return {"kind": "file", "level": "warn", "title": "Read file outside its workspace",
+                    "detail": path}, False
+        return None, True
+    mc = _CONNECT.search(raw)
+    if mc:
+        port, addr = int(mc.group(1)), mc.group(2)
+        if addr.startswith("127.") or addr == "0.0.0.0" or port == 53:
+            return None, True  # loopback / DNS resolver socket (DNS shows up via the sinkhole)
+        return {"kind": "net", "level": "crit", "title": f"Opened a connection to {addr}:{port}",
+                "detail": "The only reachable host is the sinkhole."
+                + (f" ({failed.group(1)})" if failed and failed.group(1) != "EINPROGRESS" else "")}, False
+    me = _EXECVE.search(raw)
+    if me and not failed:
+        base = me.group(1).rsplit("/", 1)[-1]
+        if base in _INTERPRETERS:
+            return None, True
+        return {"kind": "exec", "level": "warn", "title": f"Spawned a process: {base}",
+                "detail": me.group(2)[:200]}, False
+    return None, False
+
+
+def classify_sink_event(e):
+    k = e.get("kind")
+    if k == "dns":
+        return {"kind": "dns", "level": "warn", "title": f"DNS lookup: {e.get('name')}",
+                "detail": "Answered by the sinkhole, so the name points nowhere real."}
+    if k == "http":
+        body = e.get("body") or ""
+        return {"kind": "exfil", "level": "crit",
+                "title": f"BLOCKED: HTTP {e.get('method')} {e.get('host')}{e.get('path')}",
+                "detail": ("Captured payload: " + body[:600]) if body
+                else "Request captured by the sinkhole. Nothing left the sandbox."}
+    if k == "tls":
+        return {"kind": "exfil", "level": "crit",
+                "title": f"BLOCKED: TLS connection to {e.get('sni') or 'unknown host'}",
+                "detail": "Handshake captured by the sinkhole and dropped."}
+    return None
+
+
+# ====================================================================== claims vs reality
+_AREAS = [
+    ("workspace", "Workspace files", "files in /workspace"),
+    ("home", "Home directory", "your documents, outside the workspace"),
+    ("secrets", "Credentials & keys", "~/.aws, ~/.ssh, tokens, .env"),
+    ("network", "Network", "internet, DNS, outbound HTTP"),
+    ("processes", "Other programs", "shell commands, subprocesses"),
+    ("writes", "Writes outside workspace", "persistence, shell profiles"),
+]
+_CLAIM_WORDS = {
+    "workspace": ("workspace", "notes", "file", "folder", "director", "project", "document"),
+    "home": ("home director", "entire filesystem", "whole disk", "all files", "system files"),
+    "secrets": ("credential", "secret", "token", "password", "api key", "ssh"),
+    "network": ("http", "url", "web", "fetch", "download", "internet", "network", "online",
+                "remote", "api"),
+    "processes": ("shell", "command", "subprocess", "execute", "run program", "git "),
+    "writes": ("write", "save", "modif", "create file", "delete"),
+}
+_NEG = re.compile(r"\b(not|no|never|without|doesn't|does not|don't|offline)\b")
+_PURE = re.compile(r"\b(pure|purely|only)\b\s+(computation|compute|formatting|math|function)")
+
+
+def infer_claims(declared_text):
+    """What the tool's own descriptions say about each area: declared | denied | silent."""
+    text = (declared_text or "").lower()
+    sentences = [s for s in re.split(r"[.;\n]", text) if s.strip()]
+    pure = bool(_PURE.search(text))
+    claims = {}
+    for key, words in _CLAIM_WORDS.items():
+        state, quote = "silent", ""
+        for s in sentences:
+            if any(w in s for w in words):
+                if _NEG.search(s):
+                    state, quote = "denied", s.strip()
+                else:
+                    state, quote = "declared", s.strip()
+                if state == "declared":
+                    break
+        if state == "silent" and pure:
+            state, quote = "denied", _PURE.search(text).group(0)
+        claims[key] = {"state": state, "quote": quote}
+    # "read-only" / "workspace only" are scope statements too
+    if "read-only" in text and claims["writes"]["state"] == "silent":
+        claims["writes"] = {"state": "denied", "quote": "read-only"}
+    if re.search(r"workspace only|only (in|within) (the )?(project )?workspace", text):
+        for key in ("home", "secrets"):
+            if claims[key]["state"] == "silent":
+                claims[key] = {"state": "denied", "quote": "workspace only"}
+    return claims
+
+
+def scope_comparison(strace_text, sinkhole_text, declared_text=""):
+    """Row per area: what the tool claimed vs what it actually touched."""
+    obs = parse_strace(strace_text or "")
+    sink = parse_sinkhole(sinkhole_text or "")
+    claims = infer_claims(declared_text)
+    files = [o["path"] for o in obs["opens"] if "O_DIRECTORY" not in o["flags"]]
+    actual = {k: [] for k, _, _ in _AREAS}
+    for p in files:
+        if _secret_label(p):
+            actual["secrets"].append(p)
+        elif p.startswith(WORKSPACE):
+            actual["workspace"].append(p)
+        elif HOME_RE.search(p) and not _is_system_path(p):
+            actual["home"].append(p)
+    for c in obs["connects"]:
+        if not c["addr"].startswith("127.") and c["addr"] != "0.0.0.0" and c["port"] != 53:
+            actual["network"].append(f"connect {c['addr']}:{c['port']}")
+    for e in sink:
+        if e.get("kind") == "dns":
+            actual["network"].append(f"DNS {e.get('name')}")
+        elif e.get("kind") == "http":
+            actual["network"].append(f"HTTP {e.get('method')} {e.get('host')}{e.get('path')}")
+        elif e.get("kind") == "tls":
+            actual["network"].append(f"TLS {e.get('sni')}")
+    for e in obs["execs"]:
+        if e["path"].rsplit("/", 1)[-1] not in _INTERPRETERS:
+            actual["processes"].append(e["path"])
+    for w in obs["writes"]:
+        if not w["path"].startswith((WORKSPACE, "/tmp", "/audit", "/proc", "/dev")) \
+                and not _is_system_path(w["path"]):
+            actual["writes"].append(w["path"])
+    rows = []
+    for key, label, hint in _AREAS:
+        seen = list(dict.fromkeys(actual[key]))
+        claim = claims[key]
+        if not seen:
+            status = "unused" if claim["state"] == "declared" else "ok"
+        elif claim["state"] == "declared":
+            status = "ok"
+        elif key == "workspace":
+            status = "unexpected"   # odd, but inside the sandbox's sanctioned area
+        else:
+            status = "overreach"
+        rows.append({"area": key, "label": label, "hint": hint, "claim": claim["state"],
+                     "quote": claim["quote"], "actual": seen[:12], "count": len(seen),
+                     "status": status})
+    return rows
