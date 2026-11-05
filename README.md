@@ -116,6 +116,31 @@ can build and destroy sandboxes.
   overturns a block or when quarantine didn't rate the tool *trusted*. Every change (who,
   when, what, why) is kept in a per-fingerprint decision history shown on the report.
 
+## The console
+
+`/` is the product page; the console lives under `/app` with a sidebar and a workspace header.
+
+- **Overview** (`/app`): KPI tiles (tools scanned, threats contained, exfiltration attempts
+  sinkholed, versions awaiting a decision), scans per day by verdict, the verdict mix, findings
+  by technique, the review queue and recent decisions.
+- **Scans** (`/app/scans`): the samples, bring-your-own-tool, and the scan history with
+  verdict filters and search. Each scan opens its trust report, which can be shared by link,
+  exported as JSON (`/api/runs/<id>/export`) or saved as a PDF from the browser.
+- **Registry** (`/app/registry`): every approved, blocked and expired version, with a
+  fingerprint checker.
+- **Policies** (`/app/policies`): rules applied to every verdict. Each rule is *block*
+  (the version is blocked automatically when the run ends and can't be approved while the
+  rule is on), *review* (approvable only with a written reason) or *off*. Defaults block
+  exfiltration, credential reads, tool poisoning, persistence writes and rug pulls, and send
+  scope over-reach, network attempts, process spawning and scores under 60 to review. You can
+  also auto-approve TRUSTED 100/100 tools and make approvals expire after N days. An impact
+  preview shows what a draft policy would do to your latest scans before you save it. The
+  registry check honours the policy too: an approval that a tightened rule now forbids, or
+  that has expired, is answered `allowed: false`.
+- **Integrations** (`/app/integrations`): copy-paste snippets for an MCP gateway, the CLI
+  (`python -m tq.cli check <dir> <entry> --server <url>` exits 0 only for approved code),
+  GitHub Actions, zip upload and audit export, plus an API reference.
+
 ## Submitting your own tool
 
 From the dashboard: paste a public GitHub link (`https://github.com/owner/repo`, optionally
@@ -145,9 +170,10 @@ pytest -q      # analyzer unit tests always run; Docker integration tests skip w
 sandbox/    the quarantine image (strace + decoys) and its build script
 sinkhole/   the no-egress DNS/HTTP/TLS capture service
 samples/    three sample MCP tools: honest, over-reaching, malicious
-tq/         orchestrator: mcp_client, sandbox, analyzer, agent, report, runner, server, cli
+tq/         orchestrator: mcp_client, sandbox, analyzer, agent, report, runner, server, cli,
+            policy (workspace rules), fingerprint (code sha256), static/ (product page + console)
 deploy/     Dockerfile, docker-compose, Vultr provisioning
-tests/      analyzer, live-feed, claims and upload tests + Docker integration tests
+tests/      analyzer, live-feed, claims, upload and policy tests + Docker integration tests
 ```
 
 ## Safety note

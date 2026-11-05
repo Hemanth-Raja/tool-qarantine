@@ -1,24 +1,9 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tool Quarantine</title><link rel="stylesheet" href="/static/app.css"></head>
-<body><div class="wrap">
-<nav class="top"><div class="logo">TQ</div><div class="brand">Tool Quarantine</div><div class="sp"></div>
-  <span class="pill">agent: <b id="agentname">…</b></span>
-  <span class="pill">runs on <b>Vultr</b></span></nav>
-
-<h1>Don't install an agent tool <span class="grad">until you've watched it run.</span></h1>
-<p class="lede">Tool Quarantine runs an untrusted MCP server inside a disposable, network-sinkholed sandbox,
-  lets an AI agent use it like a real user would, and records every file it opens and every host it
-  tries to reach. Then it shows you what the tool <i>claims</i> next to what it <i>actually did</i>.</p>
-
-<div class="steps">
-  <div class="step"><span class="n">01</span><b>Quarantine</b><span>Fresh container: no internet route, read-only disk, decoy credentials planted.</span></div>
-  <div class="step"><span class="n">02</span><b>Exercise</b><span>An agent on Vultr Serverless Inference calls the tool with realistic inputs.</span></div>
-  <div class="step"><span class="n">03</span><b>Observe</b><span>strace on every syscall; a sinkhole answers DNS and captures any outbound data.</span></div>
-  <div class="step"><span class="n">04</span><b>Decide</b><span>Claims vs. reality, a trust score, and an approve / reject decision. Box destroyed.</span></div>
-</div>
-
-<div class="card">
+<title>Scans · Tool Quarantine</title><link rel="stylesheet" href="/static/app.css"></head>
+<body data-nav="scans" data-title="Scans" data-sub="Quarantine a tool, watch it run, then approve or block that exact version.">
+<main id="page">
+<div class="card" id="new">
   <h2>Try a sample tool</h2>
   <p class="sub">Seven MCP servers that all look harmless from their descriptions. Five of them are
     built on the official MCP SDK, and each bad one uses a technique seen in real supply-chain attacks.</p>
@@ -45,21 +30,15 @@
   <div id="upmsg" class="sub" style="margin:10px 0 0"></div>
 </div>
 
-<div class="card">
-  <div class="row" style="margin-bottom:6px"><h2>Tool registry</h2><span class="sp" style="flex:1"></span>
-    <span class="muted" style="font-size:13px">agents check <code>/api/registry/check?hash=…</code> before launching a tool</span></div>
-  <p class="sub">Every tool version a reviewer approved (pinned by code fingerprint) or blocked.</p>
-  <div style="overflow-x:auto"><table><thead><tr><th>Tool</th><th>State</th><th>Fingerprint</th><th>Quarantine verdict</th><th>Last change</th><th>When</th></tr></thead>
-  <tbody id="reg"><tr><td colspan="6" class="empty">Nothing approved or blocked yet. Open a run and decide.</td></tr></tbody></table></div>
-</div>
-
-<div class="card">
-  <div class="row" style="margin-bottom:6px"><h2>Recent runs</h2><span class="sp" style="flex:1"></span>
-    <span class="muted" style="font-size:13px">click a run for the full trust report</span></div>
+<div class="card" id="history">
+  <div class="cardhead"><h2>Scan history</h2><span class="sp"></span>
+    <div class="chips" id="filters"></div>
+    <input id="q" placeholder="Search tools…" style="width:190px;padding:6px 10px"></div>
   <div style="overflow-x:auto"><table><thead><tr><th>Tool</th><th>Status</th><th>Verdict</th><th>Score</th><th>Findings</th><th>Decision</th><th>When</th></tr></thead>
   <tbody id="rows"><tr><td colspan="7" class="empty">No runs yet. Quarantine a tool above.</td></tr></tbody></table></div>
 </div>
-</div>
+</main>
+<script src="/static/shell.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
@@ -88,23 +67,22 @@ document.getElementById('samples').innerHTML=SAMPLES.map(x=>`<div class="tool">
   <span class="tech">${esc(x.t)}</span>
   <button onclick="runSample('python /tool/${x.f}.py','${x.n}',this)">Quarantine &amp; run</button></div>`).join('');
 let polling=null;
-async function loadRegistry(){
-  const reg=await (await fetch('/api/registry')).json();
-  if(!reg.length)return;
-  $('reg').innerHTML=reg.map(e=>`<tr class=click onclick="location.href='/run/${e.run_id}'">
-    <td><span class=mono>${esc(e.tool)}</span></td>
-    <td><span class="badge b-${e.state==='approved'?'approve':'reject'}">${e.state==='approved'?'✓ approved':'⛔ blocked'}</span></td>
-    <td><code title="${esc(e.hash)}">sha256:${esc(e.hash.slice(0,12))}</code></td>
-    <td>${e.verdict?`<span class="badge b-${e.verdict}">${e.verdict}</span> <span class=score>${e.score}</span>`:'—'}</td>
-    <td class=muted>${esc(e.action||'')}${e.reviewer?' by '+esc(e.reviewer):''}${e.note?` · “${esc(e.note)}”`:''}
-      ${(e.history||[]).length>1?`<div class=dim style="font-size:12px">${e.history.length} decisions in history</div>`:''}</td>
-    <td class=dim>${ago(e.at)}</td></tr>`).join('');
+let RUNS=[], FILTER=store.get('tq-scanfilter','all');
+const FILTERS=[['all','All'],['dangerous','Dangerous'],['suspicious','Suspicious'],['review','Review'],['trusted','Trusted'],['pending','Needs decision']];
+function renderFilters(){
+  $('filters').innerHTML=FILTERS.map(([k,l])=>{const n=k==='all'?RUNS.length:RUNS.filter(r=>match(r,k)).length;
+    return `<button class="chip ${k===FILTER?'on':''}" onclick="setFilter('${k}')">${l} <span class=dim>${n}</span></button>`}).join('');
 }
-async function load(){
-  const runs=await (await fetch('/api/runs')).json();
-  const tb=$('rows');
-  if(!runs.length){tb.innerHTML='<tr><td colspan=7 class=empty>No runs yet. Quarantine a tool above.</td></tr>';return}
-  tb.innerHTML=runs.slice(0,30).map(r=>{
+function match(r,k){const v=r.verdict, d=(r.decision&&r.decision.state)||'pending';
+  if(k==='all')return true; if(k==='pending')return !!v&&d==='pending'; return v&&v.label===k}
+function setFilter(k){FILTER=k;store.set('tq-scanfilter',k);render()}
+function render(){
+  renderFilters();
+  const q=$('q').value.trim().toLowerCase(), tb=$('rows');
+  const rs=RUNS.filter(r=>match(r,FILTER)&&(!q||String(r.tool).toLowerCase().includes(q)));
+  if(!RUNS.length){tb.innerHTML='<tr><td colspan=7 class=empty>No scans yet. Quarantine a tool above.</td></tr>';return}
+  if(!rs.length){tb.innerHTML='<tr><td colspan=7 class=empty>No scans match this filter.</td></tr>';return}
+  tb.innerHTML=rs.slice(0,100).map(r=>{
     const v=r.verdict, d=(r.decision&&r.decision.state)||'pending', st=r.status||'done';
     return `<tr class=click onclick="location.href='/run/${r.id}'">
       <td><span class=mono>${esc(r.tool)}</span>${r.source&&r.source!=='built-in sample'?`<div class=dim style="font-size:12px">${esc(r.source)}</div>`:''}</td>
@@ -112,11 +90,15 @@ async function load(){
       <td>${v?`<span class="badge b-${v.label}">${v.label}</span>`:'—'}</td>
       <td class=score>${v?v.score:'—'}</td>
       <td class=muted>${sev(r.counts)}</td>
-      <td>${v?`<span class="badge b-${d}">${d}</span>`:''}</td>
+      <td>${v?`<span class="badge b-${d}">${{approve:'approved',reject:'blocked'}[d]||d}</span>`:''}</td>
       <td class=dim>${ago(r.started)}</td></tr>`}).join('');
-  clearTimeout(polling);
-  if(runs.some(r=>r.status==='running'))polling=setTimeout(load,1500);
 }
+async function load(){
+  RUNS=await (await fetch('/api/runs')).json(); render();
+  clearTimeout(polling);
+  if(RUNS.some(r=>r.status==='running'))polling=setTimeout(load,1500);
+}
+$('q').oninput=render;
 async function start(body){
   const res=await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
   const j=await res.json();
@@ -158,6 +140,6 @@ $('upgo').onclick=async()=>{
     await start({tool_id:t.id,name:t.name});
   }catch(e){msg.className='err';msg.textContent=e.message;btn.disabled=false}
 };
-fetch('/api/config').then(r=>r.json()).then(c=>{$('agentname').textContent=c.agent;if(!c.uploads)$('byo').classList.add('hide')});
-load();loadRegistry();
+fetch('/api/config').then(r=>r.json()).then(c=>{if(!c.uploads)$('byo').classList.add('hide')});
+load();
 </script></body></html>

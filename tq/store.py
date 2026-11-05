@@ -46,6 +46,12 @@ def decision_rules(run, state, note, current):
     label = (run.get("verdict") or {}).get("label")
     if state == "reject":
         return "approval revoked" if current == "approved" else "blocked"
+    from . import policy
+    hard = policy.blocking_hits(run)
+    if hard:
+        raise DecisionError("Workspace policy forbids approving this version ("
+                            + ", ".join(h["name"] for h in hard)
+                            + "). An admin can change the rule on the Policies page.")
     if current == "blocked" and not note:
         raise DecisionError("This version is blocked. Give a reason to overturn the block.")
     if label and label != "trusted" and not note:

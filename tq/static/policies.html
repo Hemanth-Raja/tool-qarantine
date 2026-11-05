@@ -1,0 +1,88 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Policies · Tool Quarantine</title><link rel="stylesheet" href="/static/app.css">
+<style>
+.rule{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.rule:last-child{border-bottom:0}.rule b{font-size:14.5px}.rule p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.rule .thr{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-top:6px}
+.rule .thr input{width:70px;padding:5px 8px}
+.savebar{position:sticky;bottom:16px;display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--line2);
+  border-radius:12px;padding:10px 14px;box-shadow:0 12px 30px rgba(0,0,0,.45);margin-top:10px}
+.impact .li{font-size:13.5px}
+@media (max-width:700px){.rule{grid-template-columns:1fr}}
+</style></head>
+<body data-nav="policies" data-title="Policies" data-sub="Rules your workspace applies to every quarantine verdict. Blocking rules stop the tool automatically and can't be approved around.">
+<main id="page">
+<div class="grid2">
+  <div>
+    <div class="card">
+      <div class="cardhead"><h2>Behaviour rules</h2><span class="sp"></span>
+        <span class="legend"><span><span class="badge b-blocked">Block</span> auto-block, no approval</span><span><span class="badge b-review">Review</span> approve with a reason</span></span></div>
+      <div id="rules"><div class="empty">Loading…</div></div>
+    </div>
+    <div class="card">
+      <h2>Approvals</h2>
+      <div class="rule"><div><b>Auto-approve clean tools</b><p>Tools rated TRUSTED with a perfect 100/100 score are approved without waiting for a reviewer.</p></div>
+        <label class="switch"><input type="checkbox" id="auto"><span></span></label></div>
+      <div class="rule"><div><b>Approvals expire after</b><p>Expired versions are refused at the registry check until they are quarantined again. 0 means never.</p></div>
+        <div class="row"><input type="number" id="ttl" min="0" max="365" style="width:80px"> <span class="muted">days</span></div></div>
+    </div>
+    <div class="savebar hide" id="savebar"><span><b>Unsaved changes</b> <span class="dim" id="savewho"></span></span><span style="flex:1"></span>
+      <button class="ghost" id="discard">Discard</button><button id="save">Save policy</button></div>
+  </div>
+  <div>
+    <div class="card" style="position:sticky;top:76px">
+      <h2>Impact preview</h2>
+      <p class="sub">What these rules do to the latest scan of each tool version. Updates as you edit; nothing is applied until you save.</p>
+      <div id="impsum" class="legend" style="margin-bottom:8px"></div>
+      <div class="list impact" id="impact"><div class="empty">Loading…</div></div>
+      <p class="dim" style="font-size:12.5px;margin:12px 0 0" id="updated"></p>
+    </div>
+  </div>
+</div>
+</main>
+<script src="/static/shell.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let SAVED=null, DRAFT=null, CATALOG=[];
+const clone=o=>JSON.parse(JSON.stringify(o));
+function body(p){return {rules:p.rules,auto_approve:p.auto_approve,approval_ttl_days:p.approval_ttl_days,updated_by:store.get('tq-reviewer','')}}
+function dirty(){return JSON.stringify(body(SAVED).rules)!==JSON.stringify(body(DRAFT).rules)||SAVED.auto_approve!==DRAFT.auto_approve||SAVED.approval_ttl_days!==DRAFT.approval_ttl_days}
+function renderRules(){
+  $('rules').innerHTML=CATALOG.map(r=>{const c=DRAFT.rules[r.id];return `<div class="rule"><div><b>${esc(r.name)}</b><p>${esc(r.desc)}</p>
+    ${'threshold' in c?`<div class="thr">Minimum score <input type="number" min="0" max="100" value="${c.threshold}" oninput="setThr('${r.id}',this.value)"></div>`:''}</div>
+    <div class="seg">${['block','review','off'].map(a=>`<button class="${c.action===a?'on '+a:''}" onclick="setAct('${r.id}','${a}')">${a[0].toUpperCase()+a.slice(1)}</button>`).join('')}</div></div>`}).join('');
+  $('auto').checked=DRAFT.auto_approve; $('ttl').value=DRAFT.approval_ttl_days;
+  $('savebar').classList.toggle('hide',!dirty());
+  $('savewho').textContent=store.get('tq-reviewer','')?'· saved as '+store.get('tq-reviewer',''):'';
+}
+function setAct(id,a){DRAFT.rules[id].action=a;renderRules();simulate()}
+function setThr(id,v){DRAFT.rules[id].threshold=Math.max(0,Math.min(100,+v||0));$('savebar').classList.toggle('hide',!dirty());simulate()}
+$('auto').onchange=e=>{DRAFT.auto_approve=e.target.checked;renderRules();simulate()};
+$('ttl').oninput=e=>{DRAFT.approval_ttl_days=Math.max(0,+e.target.value||0);$('savebar').classList.toggle('hide',!dirty())};
+let simT=null;
+function simulate(){clearTimeout(simT);simT=setTimeout(async()=>{
+  const r=await fetch('/api/policies/simulate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body(DRAFT))});
+  const rows=await r.json(); const c={blocked:0,review:0,approved:0,clear:0}; rows.forEach(x=>c[x.outcome]++);
+  const L={blocked:['Auto-blocked','blocked'],review:['Needs a reason','review'],approved:['Auto-approved','approved'],clear:['Reviewer decides','clear']};
+  $('impsum').innerHTML=Object.entries(c).filter(([,n])=>n).map(([k,n])=>`<span><span class="badge b-${L[k][1]}">${n}</span> ${L[k][0]}</span>`).join('')||'';
+  const order={blocked:0,review:1,approved:2,clear:3};
+  $('impact').innerHTML=rows.length?rows.sort((a,b)=>order[a.outcome]-order[b.outcome]).map(x=>`<a class="li" href="/run/${x.id}" style="color:var(--ink)">
+    <span class="mono">${esc(x.tool)}</span><span class="badge b-${x.verdict.label}">${x.verdict.label} ${x.verdict.score}</span><span class="sp"></span>
+    <span class="badge b-${L[x.outcome][1]}" title="${esc(x.hits.map(h=>h.name+' → '+h.action).join('\n'))}">${L[x.outcome][0]}</span></a>`).join('')
+    :'<div class="empty">No finished scans yet. Run a sample to see the policy in action.</div>';
+},150)}
+async function load(){
+  const p=await getJSON('/api/policies'); CATALOG=p.catalog; delete p.catalog; SAVED=p; DRAFT=clone(p);
+  $('updated').textContent=p.updated_at?`Last changed by ${p.updated_by} ${ago(p.updated_at)}.`:'Using the default policy.';
+  renderRules(); simulate();
+}
+$('discard').onclick=()=>{DRAFT=clone(SAVED);renderRules();simulate()};
+$('save').onclick=async()=>{
+  const r=await fetch('/api/policies',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(body(DRAFT))});
+  if(!r.ok){toast('Could not save the policy','bad');return}
+  toast('Policy saved. New scans use it from now on.'); load();
+};
+window.addEventListener('beforeunload',e=>{if(SAVED&&dirty()){e.preventDefault();e.returnValue=''}});
+load();
+</script></body></html>

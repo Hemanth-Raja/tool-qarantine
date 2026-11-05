@@ -1,16 +1,19 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Trust report · Tool Quarantine</title><link rel="stylesheet" href="/static/app.css"></head>
-<body><div class="wrap">
-<nav class="top"><a href="/" class="logo">TQ</a><a href="/" class="brand" style="color:var(--ink)">Tool Quarantine</a>
-  <div class="sp"></div><a href="/" class="pill">← all runs</a></nav>
-
+<body data-nav="scans" data-title="Trust report" data-hidehead="1">
+<main id="page">
 <div class="rhead">
   <div><div class="muted" style="font-size:12px;letter-spacing:.6px;text-transform:uppercase">Trust report</div>
     <h1 id="toolname">…</h1><div class="meta" id="meta"></div></div>
   <div class="sp"></div>
   <span id="status"></span>
   <button class="ghost hide" id="replay">↻ Replay run</button>
+  <div class="row noprint" id="ractions">
+    <button class="ghost" onclick="copyText(location.href,'Link to this report copied')">Copy link</button>
+    <a class="btn ghost" id="exportjson" href="#">Export JSON</a>
+    <button class="ghost" onclick="window.print()">Save as PDF</button>
+  </div>
 </div>
 <div class="contain">
   <span>No route to the internet</span><span>DNS + HTTP sinkhole</span><span>Read-only filesystem</span>
@@ -41,6 +44,7 @@
     <div class="card" id="approval">
       <h2>Decision</h2>
       <p class="sub" id="fp">Approving pins this exact code to your tool allowlist. Rejecting blocks it.</p>
+      <div id="polbox"></div>
       <div id="effect"></div>
       <div id="decide-ui"></div>
       <p class="err" id="decerr" style="margin:8px 0 0"></p>
@@ -56,12 +60,14 @@
 </div>
 <div class="card hide" id="findings"></div>
 <div class="card hide" id="details"></div>
-</div>
+</main>
+<script src="/static/shell.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const rid=location.pathname.split('/').pop();
+document.getElementById('exportjson').href=`/api/runs/${rid}/export`;
 const CLR={trusted:'var(--trusted)',review:'var(--review)',suspicious:'var(--suspicious)',dangerous:'var(--dangerous)'};
-const ICON={phase:'◆',tools:'▤',plan:'✦',call:'→',result:'←',file:'▸',secret:'⚿',dns:'◎',net:'⇄',exfil:'⛔',exec:'⚡',write:'✎',verdict:'■',error:'✖',poison:'☠'};
+const ICON={phase:'◆',tools:'▤',plan:'✦',call:'→',result:'←',file:'▸',secret:'⚿',dns:'◎',net:'⇄',exfil:'⛔',exec:'⚡',write:'✎',verdict:'■',error:'✖',poison:'☠',policy:'⚖'};
 function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 let report=null, queue=[], shown=0, cursor=0, playing=false, live=false, lastT=0, counts={};
 
@@ -127,6 +133,7 @@ function showVerdict(v){ $('ring').style.cssText=`--v:${v.score};--c:${CLR[v.lab
   $('vlabel').textContent=v.label; $('vlabel').style.color=CLR[v.label]; $('vsum').textContent=v.summary; }
 function header(r){
   $('toolname').textContent=r.tool||'tool'; document.title=`${r.tool} · Trust report`;
+  const cb=document.querySelector('.crumbs b'); if(cb)cb.innerHTML=`<a href="/app/scans" style="color:var(--muted)">Scans</a> <span class=dim>/</span> ${esc(r.tool||'tool')}`;
   $('meta').innerHTML=[r.source&&esc(r.source), r.entry&&`<code>${esc(r.entry)}</code>`, r.agent&&('agent: '+esc(r.agent)),
     r.mode&&esc(r.mode+' sandbox'), r.finished&&((r.finished-r.started).toFixed(1)+'s')].filter(Boolean).join(' · ');
   renderDecision(r);
@@ -154,12 +161,20 @@ function renderDecision(r){
       ${h?`<div class="evi">$ curl ${esc(check)}\n{"allowed": false, "state": "blocked", "tool": "${esc(r.tool)}"}</div>`:''}</div>`;
   }
   $('effect').innerHTML=html;
+  const pol=r.policy_now, blockers=pol?pol.hits.filter(h=>h.action==='block'):[];
+  $('polbox').innerHTML=pol&&pol.hits.length?`<div class="polbox ${pol.outcome}">
+    <div class="ph"><b>⚖ Workspace policy: ${pol.outcome==='blocked'?'approval not allowed':'needs a written reason'}</b>
+      <a href="/app/policies" class="dim" style="font-size:12.5px">edit policies →</a></div>
+    ${pol.hits.map(h=>`<div class="prule"><span class="badge b-${h.action==='block'?'blocked':'review'}">${h.action==='block'?'block':'review'}</span>
+      <span><b>${esc(h.name)}</b> <span class="dim">· ${esc(h.because.join('; '))}</span></span></div>`).join('')}</div>`:'';
+  window.POLICY_BLOCKED=blockers.length>0;
   // controls depend on the current state
   const risky=v.label&&v.label!=='trusted', name=`<input id="reviewer" placeholder="your name" style="width:130px" value="${esc(getName())}">`;
   let ui='';
+  const pb=window.POLICY_BLOCKED, dis=pb?' disabled title="Workspace policy forbids approving this version"':'';
   if(st==='pending'){
     ui=`<div class="row">${name}<input id="note" placeholder="${risky?`reason (required to approve: rated ${v.label})`:'reason (optional)'}" style="flex:1;min-width:160px"></div>
-      <div class="row" style="margin-top:8px"><button class="ok" onclick="decide('approve')">Approve</button>
+      <div class="row" style="margin-top:8px"><button class="ok" onclick="decide('approve')"${dis}>Approve</button>
       <button class="bad" onclick="decide('reject')">Reject</button></div>`;
   }else if(st==='approved'){
     ui=`<div class="row">${name}<input id="note" placeholder="reason (optional)" style="flex:1;min-width:160px">
@@ -167,8 +182,8 @@ function renderDecision(r){
       <p class="dim" style="font-size:12.5px;margin:6px 0 0">Revoking is always one click and takes effect on the next registry check.</p>`;
   }else{
     ui=`<div class="row">${name}<input id="note" placeholder="reason (required to overturn the block)" style="flex:1;min-width:160px">
-      <button class="ghost" onclick="decide('approve')">Overturn block &amp; approve</button></div>
-      <p class="dim" style="font-size:12.5px;margin:6px 0 0">Overturning a block needs a written reason, and it's kept in the history below.</p>`;
+      <button class="ghost" onclick="decide('approve')"${dis}>Overturn block &amp; approve</button></div>
+      <p class="dim" style="font-size:12.5px;margin:6px 0 0">${pb?'A workspace policy keeps this version blocked. An admin can relax the rule on the Policies page.':"Overturning a block needs a written reason, and it's kept in the history below."}</p>`;
   }
   $('decide-ui').innerHTML=ui;
   const hist=(r.registry&&r.registry.history)||r.decision_history||[];
@@ -177,7 +192,7 @@ function renderDecision(r){
       <span class="dim">· ${esc(when(e.at))}${e.run_id!==rid?` · <a href="/run/${e.run_id}">other run</a>`:''}</span>
       ${e.note?`<div class="hn">“${esc(e.note)}”</div>`:''}</div></div>`).join('')}</div>`:'';
 }
-function getName(){try{return localStorage.getItem('tq-reviewer')||''}catch(e){return ''}}
+function getName(){return store.get('tq-reviewer','')}
 function setName(n){try{localStorage.setItem('tq-reviewer',n)}catch(e){}}
 const CLAIM_TXT={declared:'Says it does this',denied:'Says it does NOT',silent:'Not mentioned'};
 const STATUS_TXT={ok:'as claimed',unused:'not used',unexpected:'unexpected',overreach:'over-reach'};

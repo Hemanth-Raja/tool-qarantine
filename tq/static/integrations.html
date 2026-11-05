@@ -1,0 +1,81 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Integrations · Tool Quarantine</title><link rel="stylesheet" href="/static/app.css">
+<style>
+.integ{display:grid;grid-template-columns:220px minmax(0,1fr);gap:22px;padding:18px 0;border-bottom:1px solid var(--line)}
+.integ:last-child{border-bottom:0}.integ h3{font-size:15.5px;margin:6px 0 4px}.integ p{color:var(--muted);font-size:13.5px;margin:0}
+.ilogo{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-weight:800;font-size:13px;background:var(--panel2);border:1px solid var(--line2)}
+.tagline{display:inline-block;font-size:11px;font-weight:750;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);margin-top:8px}
+.integ>*{min-width:0}
+@media (max-width:800px){.integ{grid-template-columns:minmax(0,1fr);gap:10px}}
+</style></head>
+<body data-nav="integrations" data-title="Integrations" data-sub="Put the registry in front of every place an agent can launch a tool, so only quarantined, approved code runs.">
+<main id="page">
+<div class="card" id="list"></div>
+<div class="card">
+  <h2>API reference</h2>
+  <p class="sub">Plain JSON over HTTP. Base URL <code id="base"></code></p>
+  <div style="overflow-x:auto"><table><thead><tr><th>Method</th><th>Path</th><th>What it does</th></tr></thead><tbody id="api"></tbody></table></div>
+</div>
+</main>
+<script src="/static/shell.js"></script>
+<script>
+const $=id=>document.getElementById(id), B=location.origin;
+$('base').textContent=B;
+const I=[
+ {l:'GW',c:'#5b9cff',t:'MCP gateway / agent runtime',tag:'Enforce',d:'Before your gateway or agent launches an MCP server, compute its fingerprint and ask the registry. Anything that is not an approved, unexpired version is refused.',
+  code:`# vendor tq/fingerprint.py from the Tool Quarantine repo
+import json, subprocess, urllib.request
+from tq.fingerprint import tool_hash
+
+def launch_if_approved(tool_dir, entry):
+    h = tool_hash(tool_dir, entry, "upload")
+    with urllib.request.urlopen("${B}/api/registry/check?hash=" + h) as r:
+        verdict = json.load(r)
+    if not verdict["allowed"]:
+        raise PermissionError(f"{tool_dir}: {verdict['state']} - {verdict['reason']}")
+    return subprocess.Popen(entry.split(), cwd=tool_dir,
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE)`},
+ {l:'CLI',c:'#8a5bff',t:'Command line',tag:'Enforce',d:'The same check as a one-liner. Exits 0 only when this exact code is approved, so it drops into any wrapper script.',
+  code:`python -m tq.cli hash  ./my-mcp-server "python /tool/server.py"
+python -m tq.cli check ./my-mcp-server "python /tool/server.py" --server ${B} \\
+  && python ./my-mcp-server/server.py`},
+ {l:'CI',c:'#2fd27a',t:'GitHub Actions',tag:'Shift left',d:'Quarantine a tool on every pull request that changes it and fail the build if the sandbox rates it anything other than TRUSTED.',
+  code:`# .github/workflows/quarantine.yml
+name: Quarantine MCP server
+on: pull_request
+jobs:
+  quarantine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send this branch to the sandbox
+        run: |
+          TOOL=$(curl -sf -X POST ${B}/api/tools/github \\
+            -H 'content-type: application/json' \\
+            -d '{"url":"https://github.com/\${{ github.repository }}/tree/\${{ github.head_ref }}"}')
+          RUN=$(curl -sf -X POST ${B}/api/runs -H 'content-type: application/json' \\
+            -d "{\\"tool_id\\":\\"$(echo $TOOL | jq -r .id)\\"}" | jq -r .id)
+          until [ "$(curl -sf ${B}/api/runs/$RUN | jq -r .status)" != running ]; do sleep 5; done
+          REPORT=$(curl -sf ${B}/api/runs/$RUN)
+          echo "Trust report: ${B}/run/$RUN"
+          test "$(echo $REPORT | jq -r .verdict.label)" = trusted`},
+ {l:'API',c:'#f5c451',t:'Upload a zip from anywhere',tag:'Scan',d:'Your build system, a registry mirror or a ticketing bot can submit a tool and link the trust report back.',
+  code:`ID=$(curl -sf -X POST "${B}/api/tools/upload?name=my-tool" \\
+  -H 'content-type: application/zip' --data-binary @my-tool.zip | jq -r .id)
+curl -sf -X POST ${B}/api/runs -H 'content-type: application/json' -d "{\\"tool_id\\":\\"$ID\\"}"
+# -> {"id": "…", "status": "running"}   then open ${B}/run/<id>`},
+ {l:'{}',c:'#ff5468',t:'Audit export',tag:'Evidence',d:'Every trust report downloads as JSON (findings, timeline, claims vs. reality, decision history) for your SIEM, a ticket or an auditor.',
+  code:`curl -sf ${B}/api/runs/<run-id>/export -o trust-report.json
+curl -sf ${B}/api/registry | jq '.[] | {tool, state, hash, reviewer, at}'`},
+];
+$('list').innerHTML=I.map(x=>`<div class="integ"><div><div class="ilogo" style="color:${x.c}">${x.l}</div>
+  <span class="tagline">${x.tag}</span><h3>${esc(x.t)}</h3><p>${esc(x.d)}</p></div>
+  <div class="codebox"><pre class="code">${esc(x.code)}</pre><button class="ghost cp">Copy</button></div></div>`).join('');
+document.querySelectorAll('.codebox').forEach((b,i)=>b.querySelector('.cp').onclick=()=>copyText(I[i].code,'Snippet copied'));
+const API=[['GET','/api/registry/check?hash=','May this exact code run? allowed / state / reason'],['GET','/api/registry','Every approved and blocked version'],
+ ['POST','/api/tools/github','Fetch a tool from a GitHub URL'],['POST','/api/tools/upload','Upload a tool as a zip body'],['POST','/api/runs','Start a quarantine run'],
+ ['GET','/api/runs/{id}','Trust report (status, verdict, findings, decision)'],['GET','/api/runs/{id}/live?after=N','Live timeline while it runs'],
+ ['POST','/api/runs/{id}/decide','Approve or reject (pins / blocks the fingerprint)'],['GET','/api/runs/{id}/export','Download the report as JSON'],
+ ['GET','/api/policies','Workspace policy'],['GET','/api/stats','Overview numbers and trends']];
+$('api').innerHTML=API.map(([m,p,d])=>`<tr><td><span class="badge ${m==='GET'?'b-declared':'b-running'}">${m}</span></td><td><code>${esc(p)}</code></td><td class=muted>${esc(d)}</td></tr>`).join('');
+</script></body></html>

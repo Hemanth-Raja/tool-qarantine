@@ -17,7 +17,6 @@ Endpoints:
   GET  /healthz
 The HTML is served from static/ ; the pages are plain JS calling the JSON API.
 """
-import hashlib
 import os
 import threading
 import time
@@ -29,7 +28,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import live, runner, store, uploads
+from . import live, policy, runner, store, uploads
+from .fingerprint import tool_hash
 
 STATIC = os.path.join(os.path.dirname(__file__), "static")
 SAMPLES = os.path.join(os.path.dirname(__file__), "..", "samples")
@@ -83,36 +83,24 @@ def _resolve(req):
     return tool_dir, req.entry, req.name, "built-in sample"
 
 
-def tool_hash(tool_dir, entry, source):
-    """sha256 over the tool's code. For built-in samples (which share a folder) only the
-    entry script and the helper it imports; for uploads, every file."""
-    h = hashlib.sha256()
-    if source == "built-in sample":
-        script = os.path.basename(entry.split()[-1])
-        files = [script, "mini_mcp.py"]
-    else:
-        files = []
-        for dirpath, dirs, fs in os.walk(tool_dir):
-            dirs[:] = sorted(d for d in dirs if d != "__pycache__")
-            files += [os.path.relpath(os.path.join(dirpath, f), tool_dir) for f in sorted(fs)
-                      if not f.startswith(".tq-")]
-    for rel in files:
-        p = os.path.join(tool_dir, rel)
-        if os.path.isfile(p):
-            h.update(rel.encode() + b"\0")
-            with open(p, "rb") as fh:
-                h.update(fh.read())
-    h.update(b"entry\0" + entry.encode())
-    return h.hexdigest()
-
-
 def _work(rid, lv, tool_dir, entry, name, mode, source):
     with _slots:
         try:
             rep = runner.run(tool_dir, entry, tool_name=name or None, mode=mode, live=lv)
             rep.update(id=rid, status="done", source=source,
                        tool_hash=tool_hash(tool_dir, entry, source))
+            rep["policy"] = pol = policy.evaluate(rep)
+            blockers = ", ".join(h["name"] for h in pol["hits"] if h["action"] == "block")
+            if pol["outcome"] == "blocked":
+                lv.emit("policy", "crit", "Blocked by workspace policy", blockers)
+            elif pol["outcome"] == "review":
+                lv.emit("policy", "warn", "Policy: needs a reviewer's written reason to approve",
+                        ", ".join(h["name"] for h in pol["hits"]))
+            elif pol["outcome"] == "approved":
+                lv.emit("policy", "ok", "Approved automatically by workspace policy", "")
+            rep["timeline"] = list(lv.events)
             store.save_run(rep)
+            _apply_policy(rid, rep)
         except Exception as e:
             traceback.print_exc()
             lv.emit("error", "crit", "Run failed", str(e)[:400])
@@ -122,6 +110,22 @@ def _work(rid, lv, tool_dir, entry, name, mode, source):
         finally:
             lv.status = "finished"
             live.forget(rid)
+
+
+def _apply_policy(rid, rep):
+    """Act on the policy outcome: auto-block, or auto-approve a perfectly clean tool."""
+    pol = rep.get("policy") or {}
+    reg = store.registry_entry(rep.get("tool_hash"))
+    try:
+        if pol.get("outcome") == "blocked" and (not reg or reg.get("state") != "blocked"):
+            names = ", ".join(h["name"] for h in pol["hits"] if h["action"] == "block")
+            store.set_decision(rid, "reject", f"Automatically blocked by policy: {names}.",
+                               "Policy engine")
+        elif pol.get("outcome") == "approved" and not reg:
+            store.set_decision(rid, "approve", "Automatically approved: rated TRUSTED 100/100 "
+                               "and the workspace allows auto-approval.", "Policy engine")
+    except store.DecisionError:
+        pass
 
 
 @app.post("/api/runs")
@@ -154,6 +158,10 @@ def api_get(rid: str):
         r["status"] = "error"   # orphaned by a restart
         r["error"] = "the server restarted while this run was in progress"
     r["registry"] = store.registry_entry(r.get("tool_hash")) if r.get("tool_hash") else None
+    if r.get("status") == "done" and r.get("verdict"):
+        r["policy_now"] = policy.evaluate(r)      # against today's rules, not run-time ones
+    if r["registry"]:
+        r["registry"]["expired"] = policy.approval_expired(r["registry"])
     return r
 
 
@@ -199,6 +207,18 @@ def api_registry_check(hash: str):
         return {"allowed": False, "state": "unknown", "hash": hash,
                 "reason": "This code has never been quarantined and approved. Run it through "
                           "Tool Quarantine first."}
+    run = store.get_run(e["run_id"]) if e["state"] == "approved" else None
+    hard = policy.blocking_hits(run) if run else []
+    if hard:
+        return {"allowed": False, "state": "blocked_by_policy", "hash": hash, "tool": e["tool"],
+                "run_id": e["run_id"], "verdict": e.get("verdict"),
+                "reason": "Approved earlier, but the workspace policy now blocks it ("
+                          + ", ".join(h["name"] for h in hard) + ")."}
+    if policy.approval_expired(e):
+        return {"allowed": False, "state": "expired", "hash": hash, "tool": e["tool"],
+                "run_id": e["run_id"], "verdict": e.get("verdict"),
+                "reason": "The approval has expired under the workspace policy. Quarantine "
+                          "the tool again to renew it."}
     return {"allowed": e["state"] == "approved", "state": e["state"], "hash": hash,
             "tool": e["tool"], "run_id": e["run_id"], "verdict": e.get("verdict"),
             "reason": ("Approved after a quarantine run." if e["state"] == "approved"
@@ -243,14 +263,158 @@ def api_config():
     return {"uploads": UPLOADS_ON, "agent": agent.model_label()}
 
 
+# ------------------------------------------------------------------ policies
+class PolicyReq(BaseModel):
+    rules: dict = {}
+    auto_approve: bool | None = None
+    approval_ttl_days: int | None = None
+    updated_by: str = ""
+
+
+def _policy_body(req):
+    body = {"rules": req.rules}
+    if req.auto_approve is not None:
+        body["auto_approve"] = req.auto_approve
+    if req.approval_ttl_days is not None:
+        body["approval_ttl_days"] = req.approval_ttl_days
+    return body
+
+
+@app.get("/api/policies")
+def api_policies():
+    return {**policy.get(), "catalog": policy.RULES}
+
+
+@app.put("/api/policies")
+def api_policies_save(req: PolicyReq):
+    return {**policy.save(_policy_body(req), req.updated_by), "catalog": policy.RULES}
+
+
+@app.post("/api/policies/simulate")
+def api_policies_simulate(req: PolicyReq):
+    """What a draft policy would do to the latest run of every tool (nothing is saved)."""
+    draft = policy.get()
+    for rid, cfg in (req.rules or {}).items():
+        if rid in draft["rules"] and isinstance(cfg, dict):
+            if cfg.get("action") in policy.ACTIONS:
+                draft["rules"][rid]["action"] = cfg["action"]
+            if "threshold" in cfg and "threshold" in draft["rules"][rid]:
+                draft["rules"][rid]["threshold"] = int(cfg["threshold"])
+    if req.auto_approve is not None:
+        draft["auto_approve"] = req.auto_approve
+    latest = {}
+    for r in store.list_runs():
+        if r.get("status") == "done" and r.get("verdict"):
+            latest.setdefault(r.get("tool_hash") or r["id"], r)
+    out = []
+    for r in latest.values():
+        ev = policy.evaluate(r, draft)
+        out.append({"id": r["id"], "tool": r.get("tool"), "verdict": r["verdict"],
+                    "outcome": ev["outcome"], "hits": ev["hits"]})
+    return out
+
+
+# ------------------------------------------------------------------ overview
+@app.get("/api/stats")
+def api_stats(days: int = 14):
+    days = max(1, min(90, days))
+    runs = store.list_runs()
+    done = [r for r in runs if r.get("status") == "done" and r.get("verdict")]
+    reg = store.registry()
+    now = time.time()
+    day0 = int(now // 86400) - days + 1
+    trend = [{"day": (day0 + i) * 86400, "trusted": 0, "review": 0, "suspicious": 0,
+              "dangerous": 0} for i in range(days)]
+    cats, exfil, secrets, durations = {}, 0, 0, []
+    for r in done:
+        i = int((r.get("started") or 0) // 86400) - day0
+        if 0 <= i < days:
+            trend[i][r["verdict"]["label"]] = trend[i].get(r["verdict"]["label"], 0) + 1
+        for f in r.get("findings") or []:
+            cats[f.get("category")] = cats.get(f.get("category"), 0) + 1
+            if f.get("category") == "network":
+                exfil += 1
+            if f.get("category") == "secret-access":
+                secrets += 1
+        if r.get("finished") and r.get("started"):
+            durations.append(r["finished"] - r["started"])
+    by_label = {k: sum(1 for r in done if r["verdict"]["label"] == k)
+                for k in ("trusted", "review", "suspicious", "dangerous")}
+    tools = {}
+    for r in done:                                  # newest run per tool name
+        tools.setdefault(r.get("tool"), r)
+    pending = []
+    for r in tools.values():
+        e = reg.get(r.get("tool_hash")) if r.get("tool_hash") else None
+        if not e:
+            pending.append({"id": r["id"], "tool": r.get("tool"), "verdict": r["verdict"],
+                            "started": r.get("started")})
+    activity = []
+    for e in reg.values():
+        for h in e.get("history") or []:
+            activity.append({**h, "tool": e.get("tool"), "hash": e.get("hash")})
+    activity.sort(key=lambda h: h.get("at") or 0, reverse=True)
+    states = [e.get("state") for e in reg.values()]
+    return {
+        "scans": len(done), "tools": len(tools), "running": sum(r.get("status") == "running" for r in runs),
+        "failed": sum(r.get("status") == "error" for r in runs),
+        "by_label": by_label, "threats_contained": sum(1 for r in done if r.get("findings")),
+        "exfil_attempts": exfil, "credentials_touched": secrets,
+        "approved": states.count("approved"), "blocked": states.count("blocked"),
+        "pending_review": pending[:8], "pending_count": len(pending),
+        "avg_scan_seconds": round(sum(durations) / len(durations), 1) if durations else None,
+        "trend": trend, "categories": cats, "activity": activity[:12],
+        "policy": {"updated_at": policy.get().get("updated_at")},
+    }
+
+
+# ------------------------------------------------------------------ pages
+def _page(name):
+    return FileResponse(os.path.join(STATIC, name))
+
+
 @app.get("/")
-def index():
-    return FileResponse(os.path.join(STATIC, "index.html"))
+def landing():
+    return _page("landing.html")
+
+
+@app.get("/app")
+def app_overview():
+    return _page("overview.html")
+
+
+@app.get("/app/scans")
+def app_scans():
+    return _page("index.html")
+
+
+@app.get("/app/registry")
+def app_registry():
+    return _page("registry.html")
+
+
+@app.get("/app/policies")
+def app_policies():
+    return _page("policies.html")
+
+
+@app.get("/app/integrations")
+def app_integrations():
+    return _page("integrations.html")
 
 
 @app.get("/run/{rid}")
 def run_page(rid):
-    return FileResponse(os.path.join(STATIC, "report.html"))
+    return _page("report.html")
+
+
+@app.get("/api/runs/{rid}/export")
+def api_export(rid: str):
+    """The full trust report as a downloadable JSON file (for audits and tickets)."""
+    from fastapi.responses import JSONResponse
+    r = api_get(rid)
+    return JSONResponse(r, headers={"Content-Disposition":
+                                    f'attachment; filename="trust-report-{r.get("tool","tool")}-{rid}.json"'})
 
 
 if os.path.isdir(STATIC):

@@ -1,0 +1,117 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Overview · Tool Quarantine</title><link rel="stylesheet" href="/static/app.css"></head>
+<body data-nav="overview" data-title="Overview" data-sub="Every agent tool your team has quarantined, and what the sandbox caught.">
+<main id="page">
+<div class="kpis" id="kpis">
+  <div class="kpi"><div class="l">Tools scanned</div><div class="v">–</div><div class="s">&nbsp;</div></div>
+  <div class="kpi"><div class="l">Threats contained</div><div class="v">–</div><div class="s">&nbsp;</div></div>
+  <div class="kpi"><div class="l">Exfiltration attempts sinkholed</div><div class="v">–</div><div class="s">&nbsp;</div></div>
+  <div class="kpi"><div class="l">Awaiting a decision</div><div class="v">–</div><div class="s">&nbsp;</div></div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <div class="cardhead"><h2>Scans by verdict</h2><span class="sp"></span>
+      <div class="seg" id="range"><button data-d="7">7d</button><button data-d="14" class="on off">14d</button><button data-d="30">30d</button></div></div>
+    <div class="legend" id="legend" style="margin-bottom:10px"></div>
+    <div class="chart" id="trend"></div>
+  </div>
+  <div class="card">
+    <div class="cardhead"><h2>Verdict mix</h2><span class="sp"></span><span class="dim" style="font-size:12.5px" id="mixn"></span></div>
+    <div id="mix"></div>
+    <h2 style="margin-top:20px">What the sandbox caught</h2>
+    <p class="sub">Findings across all scans, by technique.</p>
+    <div id="cats"></div>
+  </div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <div class="cardhead"><h2>Needs a decision</h2><span class="sp"></span><a href="/app/scans" style="font-size:13px">All scans →</a></div>
+    <div class="list" id="pending"><div class="empty">Loading…</div></div>
+  </div>
+  <div class="card">
+    <div class="cardhead"><h2>Recent decisions</h2><span class="sp"></span><a href="/app/registry" style="font-size:13px">Registry →</a></div>
+    <div class="list" id="activity"><div class="empty">Loading…</div></div>
+  </div>
+</div>
+</main>
+<script src="/static/shell.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const LABELS=[['trusted','Trusted','var(--trusted)'],['review','Review','var(--review)'],['suspicious','Suspicious','var(--suspicious)'],['dangerous','Dangerous','var(--dangerous)']];
+const CAT={'secret-access':'Credential theft','network':'Network egress / exfiltration','scope-overreach':'Scope over-reach',
+  'tool-poisoning':'Tool poisoning','write':'Persistence (writes)','exec':'Process spawning','rug-pull':'Rug pull'};
+let DAYS=+store.get('tq-range','14');
+function kpis(s){
+  const k=document.querySelectorAll('#kpis .kpi');
+  const set=(i,v,sub,cls)=>{k[i].querySelector('.v').textContent=v;k[i].querySelector('.s').innerHTML=sub;if(cls)k[i].classList.add(cls)};
+  set(0,s.tools,`${s.scans} scan${s.scans===1?'':'s'}${s.avg_scan_seconds?` · avg ${s.avg_scan_seconds}s each`:''}`);
+  set(1,s.threats_contained,`${s.by_label.dangerous} dangerous · ${s.by_label.suspicious} suspicious`,s.threats_contained?'alert':'');
+  set(2,s.exfil_attempts,`${s.credentials_touched} decoy secret${s.credentials_touched===1?'':'s'} read · 0 bytes out`);
+  set(3,s.pending_count,`${s.approved} approved · ${s.blocked} blocked`);
+}
+function trend(s){
+  $('legend').innerHTML=LABELS.map(([k,l,c])=>`<span><i style="background:${c}"></i>${l}</span>`).join('');
+  const W=640,H=250,P={l:28,r:6,t:8,b:24}, n=s.trend.length, iw=W-P.l-P.r, ih=H-P.t-P.b;
+  const tot=s.trend.map(d=>LABELS.reduce((a,[k])=>a+(d[k]||0),0)), max=Math.max(4,...tot);
+  const step=Math.ceil(max/4), top=step*4, slot=iw/n, bw=Math.max(4,Math.min(26,slot*.62));
+  const y=v=>P.t+ih-(v/top)*ih;
+  let g='';
+  for(let i=0;i<=4;i++){const v=i*step;g+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/>
+    <text x="${P.l-8}" y="${y(v)+4}" text-anchor="end" font-size="10.5" fill="var(--dim)">${v}</text>`}
+  s.trend.forEach((d,i)=>{
+    const x=P.l+slot*i+(slot-bw)/2; let acc=0; const segs=LABELS.filter(([k])=>d[k]);
+    segs.forEach(([k,,c],j)=>{const v=d[k], y0=y(acc), y1=y(acc+v), h=Math.max(1,y0-y1-(j<segs.length-1?2:0));
+      const lastSeg=j===segs.length-1, r=lastSeg?Math.min(4,bw/2,h):0;
+      g+=lastSeg?`<path d="M${x},${y0} v${-(h-r)} q0,${-r} ${r},${-r} h${bw-2*r} q${r},0 ${r},${r} v${h-r} z" fill="${c}"/>`
+        :`<rect x="${x}" y="${y0-h}" width="${bw}" height="${h}" fill="${c}"/>`; acc+=v});
+    const lab=new Date(d.day*1000), show=n<=14||i%Math.ceil(n/10)===0||i===n-1;
+    if(show)g+=`<text x="${x+bw/2}" y="${H-6}" text-anchor="middle" font-size="10.5" fill="var(--dim)">${lab.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</text>`;
+    g+=`<rect class="hit" data-i="${i}" x="${P.l+slot*i}" y="${P.t}" width="${slot}" height="${ih}" fill="transparent"/>`;
+  });
+  $('trend').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Scans per day by verdict">${g}</svg><div class="tip" id="tip"></div>`;
+  const tip=$('tip');
+  $('trend').querySelectorAll('.hit').forEach(r=>{
+    r.addEventListener('mouseenter',()=>{const d=s.trend[+r.dataset.i];r.setAttribute('fill','rgba(255,255,255,.04)');
+      tip.innerHTML=`<b>${new Date(d.day*1000).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}</b><br>`+
+        LABELS.map(([k,l,c])=>`<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${c};margin-right:6px"></span>${l}: <b>${d[k]||0}</b>`).join('<br>');
+      const box=$('trend').getBoundingClientRect(), rb=r.getBoundingClientRect();
+      tip.style.left=Math.min(box.width-150,Math.max(0,rb.left-box.left+rb.width/2-60))+'px'; tip.style.top='10px'; tip.classList.add('show')});
+    r.addEventListener('mouseleave',()=>{r.setAttribute('fill','transparent');tip.classList.remove('show')});
+  });
+}
+function mix(s){
+  const tot=LABELS.reduce((a,[k])=>a+s.by_label[k],0); $('mixn').textContent=`${tot} scan${tot===1?'':'s'}`;
+  if(!tot){$('mix').innerHTML='<p class="muted">No finished scans yet.</p>';return}
+  $('mix').innerHTML=`<div style="display:flex;gap:2px;height:12px;border-radius:6px;overflow:hidden;margin:4px 0 12px">
+    ${LABELS.filter(([k])=>s.by_label[k]).map(([k,l,c])=>`<div title="${l}: ${s.by_label[k]}" style="flex:${s.by_label[k]};background:${c}"></div>`).join('')}</div>
+    <div class="legend">${LABELS.map(([k,l,c])=>`<span><i style="background:${c}"></i>${l} <b style="color:var(--ink)">${s.by_label[k]}</b> <span class=dim>${Math.round(100*s.by_label[k]/tot)}%</span></span>`).join('')}</div>`;
+}
+function cats(s){
+  const e=Object.entries(s.categories).sort((a,b)=>b[1]-a[1]), max=Math.max(1,...e.map(x=>x[1]));
+  $('cats').innerHTML=e.length?e.map(([k,v])=>`<div class="hbar"><span>${esc(CAT[k]||k)}</span>
+    <div class="track"><div class="fill" style="width:${100*v/max}%"></div></div><span class="n">${v}</span></div>`).join('')
+    :'<p class="muted">Nothing caught yet. Every scanned tool behaved as described.</p>';
+}
+function lists(s){
+  $('pending').innerHTML=s.pending_review.length?s.pending_review.map(p=>`<a class="li" href="/run/${p.id}" style="color:var(--ink)">
+    <span class="mono">${esc(p.tool)}</span><span class="badge b-${p.verdict.label}">${p.verdict.label}</span>
+    <span class="sp"></span><span class="dim" style="font-size:12.5px">${ago(p.started)}</span><span class="btn ghost" style="padding:4px 10px;font-size:12.5px">Review</span></a>`).join('')
+    :'<div class="empty">You\'re all caught up. Every scanned tool has a decision.</div>';
+  $('activity').innerHTML=s.activity.length?s.activity.map(a=>`<a class="li" href="/run/${a.run_id}" style="color:var(--ink)">
+    <span class="badge b-${a.state==='approve'?'approved':'blocked'}">${a.state==='approve'?'✓':'⛔'} ${esc(a.action)}</span>
+    <span class="mono">${esc(a.tool)}</span><span class="sp"></span>
+    <span class="dim" style="font-size:12.5px">${esc(a.reviewer)} · ${ago(a.at)}</span></a>`).join('')
+    :'<div class="empty">No decisions yet.</div>';
+}
+async function load(){
+  const s=await getJSON('/api/stats?days='+DAYS);
+  kpis(s);trend(s);mix(s);cats(s);lists(s);
+  if(s.running)setTimeout(load,3000);
+}
+document.querySelectorAll('#range button').forEach(b=>{b.classList.toggle('on',+b.dataset.d===DAYS);b.classList.toggle('off',+b.dataset.d===DAYS);
+  b.onclick=()=>{DAYS=+b.dataset.d;store.set('tq-range',DAYS);document.querySelectorAll('#range button').forEach(x=>{x.classList.toggle('on',x===b);x.classList.toggle('off',x===b)});load()}});
+load();
+</script></body></html>

@@ -157,7 +157,7 @@ def test_decision_pins_hash_in_registry(tmp_path, monkeypatch):
 
 
 def test_tool_hash_changes_with_code(tmp_path):
-    from tq.server import tool_hash
+    from tq.fingerprint import tool_hash
     (tmp_path / "server.py").write_text("print(1)")
     h1 = tool_hash(str(tmp_path), "python /tool/server.py", "zip upload")
     (tmp_path / "server.py").write_text("print(2)")

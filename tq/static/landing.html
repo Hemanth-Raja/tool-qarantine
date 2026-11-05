@@ -1,0 +1,142 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tool Quarantine · Sandbox every agent tool before it runs</title>
+<meta name="description" content="Tool Quarantine detonates untrusted MCP servers in a disposable, network-sinkholed sandbox, shows what they claim next to what they actually did, and pins approved code so agents only run what you vetted.">
+<link rel="stylesheet" href="/static/app.css">
+<style>
+.lwrap{max-width:1180px;margin:0 auto;padding:0 24px}
+.lnav{display:flex;align-items:center;gap:22px;padding:18px 0}
+.lnav .brand{display:flex;align-items:center;gap:10px;font-weight:750;color:var(--ink)}
+.lnav .links{display:flex;gap:22px;margin-left:18px}.lnav .links a{color:var(--muted);font-size:14px}.lnav .links a:hover{color:var(--ink)}
+.lnav .sp{flex:1}
+.hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:46px;align-items:center;padding:56px 0 40px}
+.eyebrow{display:inline-flex;gap:8px;align-items:center;font-size:12.5px;color:#b9c4d6;border:1px solid var(--line2);background:var(--panel);padding:5px 12px;border-radius:999px;margin-bottom:18px}
+.eyebrow .dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.hero h1{font-size:52px;line-height:1.05;letter-spacing:-1.2px;margin:0 0 18px}
+.hero .lede{font-size:18px;max-width:560px;margin-bottom:28px}
+.cta{display:flex;gap:12px;flex-wrap:wrap}.cta .btn{padding:12px 20px;font-size:15px;border-radius:11px}
+.mock{border:1px solid var(--line2);border-radius:16px;background:linear-gradient(180deg,#0f1520,#090c12);box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(91,156,255,.06);overflow:hidden}
+.mock .bar{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line);align-items:center}
+.mock .bar i{width:10px;height:10px;border-radius:50%;background:var(--line2)}
+.mock .bar span{margin-left:10px;font-size:12px;color:var(--dim);font-family:var(--mono)}
+.mock .body{padding:6px 0 10px;font-family:var(--mono);font-size:12.5px}
+.mock .ev{animation:none}
+.mock .vd{display:flex;align-items:center;gap:14px;padding:12px 16px;border-top:1px solid var(--line);margin-top:6px}
+.mock .vd b{color:var(--dangerous);font-size:20px;letter-spacing:.5px;font-family:ui-sans-serif,system-ui}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--line);border-radius:14px;background:var(--panel);margin:18px 0 70px}
+.stats div{padding:18px 20px;border-right:1px solid var(--line)}.stats div:last-child{border-right:0}
+.stats b{display:block;font-size:28px;letter-spacing:-.5px;font-variant-numeric:tabular-nums}.stats span{color:var(--muted);font-size:13px}
+.sec{padding:10px 0 70px}.sec h2{font-size:32px;letter-spacing:-.6px;margin:0 0 10px}.sec .lede{margin-bottom:28px}
+.kicker{font-size:12px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
+.feat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.f{border:1px solid var(--line);border-radius:14px;padding:20px;background:linear-gradient(180deg,var(--panel),var(--bg2))}
+.f .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:rgba(91,156,255,.12);color:#9cc2ff;font-size:17px;margin-bottom:12px}
+.f h3{font-size:16px;margin:0 0 6px}.f p{color:var(--muted);font-size:14px;margin:0}
+.threats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.th{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--panel)}
+.th .k{font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase}
+.th b{display:block;font-family:var(--mono);margin:4px 0}.th span{color:var(--muted);font-size:13px}
+.final{text-align:center;border:1px solid var(--line2);border-radius:20px;padding:48px 24px;margin-bottom:60px;
+  background:radial-gradient(600px 200px at 50% 0%,rgba(91,156,255,.16),transparent),var(--panel)}
+.final h2{font-size:34px;margin:0 0 10px;letter-spacing:-.6px}.final .cta{justify-content:center;margin-top:22px}
+footer{border-top:1px solid var(--line);padding:22px 0 40px;color:var(--dim);font-size:13px;display:flex;gap:18px;flex-wrap:wrap}
+footer a{color:var(--muted)}
+@media (max-width:960px){.hero{grid-template-columns:1fr;padding-top:24px}.hero h1{font-size:38px}.feat{grid-template-columns:1fr}
+  .threats{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}.stats div:nth-child(2){border-right:0}
+  .stats div:nth-child(-n+2){border-bottom:1px solid var(--line)}.lnav .links,.lnav .gh{display:none}}
+@media (max-width:520px){.threats{grid-template-columns:1fr}}
+</style></head>
+<body>
+<div class="lwrap">
+<nav class="lnav"><a class="brand" href="/"><span class="logo">TQ</span>Tool Quarantine</a>
+  <div class="links"><a href="#how">How it works</a><a href="#features">Product</a><a href="#threats">Threats</a><a href="/app/integrations">Integrations</a></div>
+  <div class="sp"></div><a href="https://github.com/Hemanth-Raja/tool-qarantine" class="muted gh" style="font-size:14px">GitHub</a>
+  <a class="btn" href="/app">Open console →</a></nav>
+
+<section class="hero">
+  <div>
+    <span class="eyebrow"><span class="dot"></span>Sandboxes on Vultr · agent on Vultr Serverless Inference</span>
+    <h1>Sandbox every agent tool <span class="grad">before it touches your machine.</span></h1>
+    <p class="lede">Tool Quarantine detonates untrusted MCP servers in a disposable, network-sinkholed box, lets an AI agent use them like a real user,
+      and shows what each tool <i>claims</i> next to what it <i>actually did</i>. Approve a version and only that exact code is allowed to run.</p>
+    <div class="cta"><a class="btn" href="/app/scans#new">Quarantine a tool, free →</a><a class="btn ghost" href="/app">View the console</a></div>
+  </div>
+  <div class="mock" aria-hidden="true">
+    <div class="bar"><i></i><i></i><i></i><span>json-formatter · live activity</span></div>
+    <div class="body">
+      <div class="ev phase"><span class="t">+0.00s</span><span class="ic">◆</span><span class="ti">Sandbox up: no route out, decoys planted</span></div>
+      <div class="ev info"><span class="t">+0.41s</span><span class="ic">✦</span><span class="ti">Agent planned 1 call</span></div>
+      <div class="ev info"><span class="t">+0.52s</span><span class="ic">→</span><span class="ti">Calling format_json</span></div>
+      <div class="ev crit"><span class="t">+0.55s</span><span class="ic">⚿</span><span class="ti">Read AWS credentials</span><span class="de">~/.aws/credentials</span></div>
+      <div class="ev crit"><span class="t">+0.56s</span><span class="ic">⚿</span><span class="ti">Read GitHub token</span><span class="de">~/.config/gh/hosts.yml</span></div>
+      <div class="ev crit exfil"><span class="t">+0.61s</span><span class="ic">⛔</span><span class="ti">Exfiltration caught by sinkhole</span><span class="de">POST analytics.tq-demo.example/collect  body={"collected": ["[default] aws_access_key_id=…"]}</span></div>
+      <div class="ev crit"><span class="t">+0.70s</span><span class="ic">⚖</span><span class="ti">Blocked by workspace policy</span></div>
+      <div class="vd"><div class="ring" style="--v:3;--c:var(--dangerous);width:54px;height:54px"><div class="inner" style="width:40px;height:40px;font-size:15px">0</div></div>
+        <div><b>DANGEROUS</b><div class="muted" style="font-size:12.5px;font-family:ui-sans-serif,system-ui">Says “pure formatting”. Read two credentials and tried to send them. Nothing left the box.</div></div></div>
+    </div>
+  </div>
+</section>
+
+<div class="stats" id="stats">
+  <div><b id="s1">–</b><span>tools quarantined here</span></div>
+  <div><b id="s2">–</b><span>threats contained</span></div>
+  <div><b id="s3">–</b><span>exfiltration attempts sinkholed</span></div>
+  <div><b>0 bytes</b><span>ever left a sandbox</span></div>
+</div>
+
+<section class="sec" id="how">
+  <div class="kicker">How it works</div>
+  <h2>Watch it run. Then decide.</h2>
+  <p class="lede">A tool's description is a promise. Tool Quarantine checks the promise in under a minute.</p>
+  <div class="steps">
+    <div class="step"><span class="n">01</span><b>Quarantine</b><span>Fresh container: no internet route, read-only disk, every capability dropped, decoy credentials planted.</span></div>
+    <div class="step"><span class="n">02</span><b>Exercise</b><span>An agent on Vultr Serverless Inference reads the tool's own description and calls it with realistic inputs.</span></div>
+    <div class="step"><span class="n">03</span><b>Observe</b><span>strace records every file and process; a sinkhole answers DNS and HTTP and keeps whatever the tool tries to send.</span></div>
+    <div class="step"><span class="n">04</span><b>Decide</b><span>Claims vs. reality, a trust score, your workspace policy, and a one-click approve or block. Then the box is destroyed.</span></div>
+  </div>
+</section>
+
+<section class="sec" id="features">
+  <div class="kicker">Product</div>
+  <h2>Everything between “found it on GitHub” and “my agent uses it”.</h2>
+  <p class="lede">Built for platform and security teams that let agents pick up third-party tools.</p>
+  <div class="feat">
+    <div class="f"><div class="ic">◉</div><h3>Live detonation</h3><p>Watch file reads, credential access, DNS lookups and outbound POSTs stream in while the tool runs, then replay the run for your team.</p></div>
+    <div class="f"><div class="ic">⇆</div><h3>Claims vs. reality</h3><p>Every area the tool's description mentions or denies (files, secrets, network, processes, writes) next to what it actually touched.</p></div>
+    <div class="f"><div class="ic">#</div><h3>Code-pinned registry</h3><p>Approvals attach to the sha256 of the code. Change one byte and the tool is unknown again, so a later “update” can't slip in a rug pull.</p></div>
+    <div class="f"><div class="ic">⚖</div><h3>Policies</h3><p>Auto-block exfiltration, credential theft and tool poisoning. Require a written reason for anything borderline. Expire approvals.</p></div>
+    <div class="f"><div class="ic">⌁</div><h3>Gateway & CI checks</h3><p>One HTTP call tells an MCP gateway, agent runtime or CI job whether this exact code may run.</p></div>
+    <div class="f"><div class="ic">▤</div><h3>Audit trail</h3><p>Who approved what, when, and why, for every version. Export any report as JSON or PDF.</p></div>
+  </div>
+</section>
+
+<section class="sec" id="threats">
+  <div class="kicker">Threat coverage</div>
+  <h2>Caught in the sandbox, not in production.</h2>
+  <p class="lede">Every sample in the console uses a technique seen in real supply-chain attacks on agent tooling. Try them yourself.</p>
+  <div class="threats">
+    <div class="th"><span class="k k-mal">Exfiltration</span><b>json-formatter</b><span>Reads cloud keys, POSTs them to an “analytics” host.</span></div>
+    <div class="th"><span class="k k-mal">Tool poisoning</span><b>weather-forecast</b><span>Hidden &lt;IMPORTANT&gt; prompt; SSH key smuggled out through DNS.</span></div>
+    <div class="th"><span class="k k-mal">Rug pull</span><b>github-helper</b><span>Clean on the first call, steals every credential from the second.</span></div>
+    <div class="th"><span class="k k-over">Persistence</span><b>doc-converter</b><span>Fingerprints the host and edits ~/.bashrc to run at every login.</span></div>
+    <div class="th"><span class="k k-over">Scope over-reach</span><b>notes-search</b><span>“Workspace only”, quietly indexes your whole home folder.</span></div>
+    <div class="th"><span class="k k-honest">Honest</span><b>csv-analyst</b><span>Reads only the workspace file it was asked about.</span></div>
+    <div class="th"><span class="k k-honest">Honest</span><b>unit-converter</b><span>Pure computation. Touches nothing.</span></div>
+    <div class="th"><span class="k k-up">Yours</span><b>your-mcp-server</b><span>Paste a GitHub link or drop a zip.</span></div>
+  </div>
+</section>
+
+<section class="final">
+  <h2>Don't install an agent tool until you've watched it run.</h2>
+  <p class="muted">No account needed for the demo. Your code only ever runs inside the sandbox.</p>
+  <div class="cta"><a class="btn" href="/app/scans#new">Quarantine a tool →</a><a class="btn ghost" href="/app/policies">See the policy engine</a></div>
+</section>
+<footer><span>Tool Quarantine · built for the Vultr Agent Rush hackathon</span><span style="flex:1"></span>
+  <a href="/app">Console</a><a href="/app/integrations">API</a><a href="https://github.com/Hemanth-Raja/tool-qarantine">GitHub</a></footer>
+</div>
+<script>
+fetch('/api/stats').then(r=>r.json()).then(s=>{
+  document.getElementById('s1').textContent=s.tools;document.getElementById('s2').textContent=s.threats_contained;
+  document.getElementById('s3').textContent=s.exfil_attempts}).catch(()=>{});
+</script>
+</body></html>
