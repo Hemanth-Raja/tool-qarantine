@@ -173,6 +173,7 @@ samples/    three sample MCP tools: honest, over-reaching, malicious
 tq/         orchestrator: mcp_client, sandbox, analyzer, agent, report, runner, server, cli,
             policy (workspace rules), fingerprint (code sha256), static/ (product page + console)
 deploy/     Dockerfile, docker-compose, Vultr provisioning
+demo/       slide deck (slides.html) and the captioned demo-video recorder (record_demo.js)
 tests/      analyzer, live-feed, claims, upload and policy tests + Docker integration tests
 ```
 
