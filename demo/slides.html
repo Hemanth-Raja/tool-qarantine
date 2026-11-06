@@ -1,0 +1,127 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Tool Quarantine</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+@page{size:1920px 1080px;margin:0}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,sans-serif;color:#eef1f7;background:#07090f}
+.s{width:1920px;height:1080px;padding:96px 120px;position:relative;overflow:hidden;page-break-after:always;
+  background:radial-gradient(1100px 500px at 15% -10%,rgba(108,124,255,.22),transparent 60%),radial-gradient(900px 500px at 100% 100%,rgba(176,108,255,.14),transparent 60%),#07090f}
+.k{font-size:24px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#8f9bff;margin-bottom:22px}
+h1{font-size:104px;line-height:1.02;letter-spacing:-3.5px;margin:0 0 28px;font-weight:800}
+h2{font-size:78px;line-height:1.08;letter-spacing:-2px;margin:0 0 36px;font-weight:800}
+.g{background:linear-gradient(92deg,#aab4ff,#c9a5ff 55%,#ff9ad5);-webkit-background-clip:text;background-clip:text;color:transparent}
+p,li{font-size:32px;line-height:1.45;color:#c3cad8}
+.m{color:#8b93a7}
+.logo{display:inline-grid;place-items:center;width:96px;height:96px;border-radius:26px;background:linear-gradient(135deg,#6c7cff,#b06cff);font-weight:800;font-size:36px;margin-bottom:40px;box-shadow:0 10px 50px rgba(108,124,255,.45)}
+.foot{position:absolute;left:120px;right:120px;bottom:60px;display:flex;justify-content:space-between;font-size:22px;color:#5f677b}
+.cols{display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:28px}
+.c{border:1px solid #2b3243;border-radius:24px;padding:44px;background:linear-gradient(180deg,#10141e,#0b0e16)}
+.c b{display:block;font-size:40px;margin-bottom:16px;color:#eef1f7}.c span{font-size:30px;line-height:1.45;color:#a5adbf}
+.n{font-family:"JetBrains Mono";font-size:22px;color:#8f9bff;display:block;margin-bottom:14px}
+.term{font-family:"JetBrains Mono";font-size:27px;background:#05070c;border:1px solid #2b3243;border-radius:20px;padding:30px 36px;line-height:1.75}
+.crit{color:#ff9aa8}.ok{color:#2fd27a}.ph{color:#aab4ff}.d{color:#5f677b}
+.big{font-size:150px;font-weight:800;letter-spacing:-5px;line-height:1}
+.pill{display:inline-block;font-size:24px;font-weight:700;padding:8px 18px;border-radius:999px;margin-right:10px}
+.red{background:rgba(255,84,104,.16);color:#ff5468}.grn{background:rgba(47,210,122,.15);color:#2fd27a}.amb{background:rgba(245,159,43,.15);color:#f59f2b}
+table{border-collapse:collapse;width:100%;font-size:32px}td,th{padding:20px 18px;border-bottom:1px solid #1f2533;text-align:left}th{color:#5f677b;font-size:20px;letter-spacing:1.5px;text-transform:uppercase}
+img.shot{border-radius:20px;border:1px solid #2b3243;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+</style></head><body>
+
+<section class="s" style="display:flex;flex-direction:column;justify-content:center">
+  <div class="logo">TQ</div>
+  <div class="k">Vultr Agent Rush · Blast Radius Zero</div>
+  <h1>Tool Quarantine</h1>
+  <p style="font-size:42px;max-width:1350px;color:#c3cad8">Sandbox every agent tool <span class="g" style="font-weight:700">before it touches your machine.</span></p>
+  <div class="foot"><span>Hemanth Raja · Poojitha Katta</span><span>github.com/Hemanth-Raja/tool-qarantine</span></div>
+</section>
+
+<section class="s">
+  <div class="k">The problem</div>
+  <h2>Agents install tools from strangers.<br><span class="g">Nobody checks what they actually do.</span></h2>
+  <div class="cols" style="--n:3;margin-top:60px">
+    <div class="c"><b>Trust by description</b><span>An MCP server tells the agent what it does in a sentence. Users approve that sentence, not the code.</span></div>
+    <div class="c"><b>Full blast radius</b><span>The tool runs with the user's files, SSH keys, cloud credentials and network. One bad tool can reach all of it.</span></div>
+    <div class="c"><b>Real attacks</b><span>Tool poisoning, credential exfiltration, DNS smuggling, rug pulls and persistence already target agent tooling.</span></div>
+  </div>
+</section>
+
+<section class="s">
+  <div class="k">The solution</div>
+  <h2>Watch it run in a sealed box. <span class="g">Then decide.</span></h2>
+  <div class="cols" style="--n:4;margin-top:50px">
+    <div class="c"><span class="n">01</span><b>Quarantine</b><span>Fresh container: no internet route, read-only disk, capabilities dropped, decoy credentials planted.</span></div>
+    <div class="c"><span class="n">02</span><b>Exercise</b><span>An agent on Vultr Serverless Inference reads the tool's description and uses it like a real user.</span></div>
+    <div class="c"><span class="n">03</span><b>Observe</b><span>strace records every file and process. A sinkhole answers DNS and HTTP and keeps what the tool tries to send.</span></div>
+    <div class="c"><span class="n">04</span><b>Decide</b><span>Claims vs. reality, a trust score, workspace policy, approve or block. Then the box is destroyed.</span></div>
+  </div>
+</section>
+
+<section class="s">
+  <div class="k">The containment moment</div>
+  <h2>“json-formatter: pure formatting.”</h2>
+  <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:48px;align-items:center">
+    <div class="term">
+      <div><span class="d">+0.00s</span> <span class="ph">◆ Sandbox up: no route out, decoys planted</span></div>
+      <div><span class="d">+0.52s</span> → Calling format_json</div>
+      <div class="crit"><span class="d">+0.55s</span> ⚿ Read AWS credentials <span class="d">~/.aws/credentials</span></div>
+      <div class="crit"><span class="d">+0.56s</span> ⚿ Read GitHub token <span class="d">~/.config/gh/hosts.yml</span></div>
+      <div class="crit"><span class="d">+0.61s</span> ⛔ POST analytics.tq-demo.example/collect</div>
+      <div class="d" style="padding-left:110px">body = {"collected": ["[default] aws_access_key_id=…"]}</div>
+      <div class="crit"><span class="d">+0.70s</span> ⚖ Blocked by workspace policy</div>
+    </div>
+    <div><div class="big" style="color:#ff5468">0<span style="font-size:60px;letter-spacing:-1px">/100</span></div>
+      <p style="font-size:30px"><span class="pill red">DANGEROUS</span></p>
+      <p>The sinkhole captured the stolen keys. <b style="color:#eef1f7">Zero bytes left the box.</b> The version is blocked for every agent that checks the registry.</p></div>
+  </div>
+</section>
+
+<section class="s">
+  <div class="k">The product</div>
+  <h2>A trust report, not a scan score</h2>
+  <div class="cols" style="--n:3">
+    <div class="c"><b>Live activity</b><span>Watch file reads, credential access, DNS and POSTs stream in, then replay the run for your team.</span></div>
+    <div class="c"><b>Claims vs. reality</b><span>Each area the tool's description mentions or denies, next to what it actually touched. Over-reach is flagged.</span></div>
+    <div class="c"><b>Blast radius</b><span>A map of everything it reached for and where the sandbox wall stopped it.</span></div>
+    <div class="c"><b>Code-pinned registry</b><span>Approval pins the sha256 of the code. Change one byte and it must be quarantined again: no rug pulls.</span></div>
+    <div class="c"><b>Policies</b><span>Auto-block exfiltration, credential theft, poisoning, persistence. Require reasons. Expire approvals.</span></div>
+    <div class="c"><b>Integrations</b><span>One HTTP call for MCP gateways, a CLI check, and a GitHub Actions gate. JSON / PDF audit export.</span></div>
+  </div>
+</section>
+
+<section class="s">
+  <div class="k">Results on the sample suite</div>
+  <h2>Seven tools that all look harmless</h2>
+  <table>
+    <tr><th>Tool</th><th>What it says</th><th>What it really does</th><th>Verdict</th></tr>
+    <tr><td style="font-family:JetBrains Mono">csv-analyst</td><td>Summarize a workspace CSV</td><td>Exactly that</td><td><span class="pill grn">trusted</span></td></tr>
+    <tr><td style="font-family:JetBrains Mono">unit-converter</td><td>Pure computation</td><td>Exactly that</td><td><span class="pill grn">trusted</span></td></tr>
+    <tr><td style="font-family:JetBrains Mono">notes-search</td><td>Workspace only</td><td>Indexes the whole home folder</td><td><span class="pill amb">suspicious</span></td></tr>
+    <tr><td style="font-family:JetBrains Mono">doc-converter</td><td>Markdown to HTML</td><td>Edits ~/.bashrc to persist</td><td><span class="pill amb">suspicious</span></td></tr>
+    <tr><td style="font-family:JetBrains Mono">json-formatter</td><td>Pure formatting</td><td>Steals cloud keys over HTTP</td><td><span class="pill red">dangerous</span></td></tr>
+    <tr><td style="font-family:JetBrains Mono">weather-forecast</td><td>3-day forecast</td><td>Hidden prompt, SSH key out via DNS</td><td><span class="pill red">dangerous</span></td></tr>
+    <tr><td style="font-family:JetBrains Mono">github-helper</td><td>List pull requests</td><td>Clean once, then steals everything</td><td><span class="pill red">dangerous</span></td></tr>
+  </table>
+</section>
+
+<section class="s">
+  <div class="k">Built on Vultr</div>
+  <h2>Every run is disposable</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px">
+    <div class="c"><b>Vultr Cloud Compute</b><span>The orchestrator, the per-run sandbox containers and the DNS / HTTP / TLS sinkhole run on a Vultr VM in Frankfurt. Each run gets its own internal network with no route out, and it is destroyed afterwards.</span></div>
+    <div class="c"><b>Vultr Serverless Inference</b><span>The agent that exercises each tool is an LLM on Vultr Serverless Inference (OpenAI-compatible API, model qwen3.8-27b). It reads the tool's own description and plans realistic calls, the way a user's agent would.</span></div>
+    <div class="c" style="grid-column:1/-1"><b>Stack</b><span>Python · FastAPI · Docker · strace · official MCP SDK · a custom MCP stdio client · plain HTML/JS console. 28 automated tests, plus Docker integration tests.</span></div>
+  </div>
+</section>
+
+<section class="s">
+  <div class="k">Why it matters</div>
+  <h2>The approval step every agent platform is missing</h2>
+  <div class="cols" style="--n:3">
+    <div class="c"><b>Who buys it</b><span>Platform and security teams letting developers and agents pick up third-party MCP servers.</span></div>
+    <div class="c"><b>How it fits</b><span>A gate in front of the MCP gateway, the agent runtime and CI. Unknown or changed code simply doesn't run.</span></div>
+    <div class="c"><b>Next</b><span>gVisor / Firecracker isolation, Node and binary tools, SSO and roles, signed attestations of a passed quarantine.</span></div>
+  </div>
+  <p style="margin-top:70px;font-size:40px;color:#eef1f7;font-weight:700">Don't install an agent tool <span class="g">until you've watched it run.</span></p>
+  <div class="foot"><span>Live demo: http://199.247.22.132/</span><span>github.com/Hemanth-Raja/tool-qarantine</span></div>
+</section>
+</body></html>

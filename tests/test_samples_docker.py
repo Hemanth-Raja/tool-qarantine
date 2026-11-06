@@ -34,3 +34,27 @@ def test_malicious_tool_caught():
     assert r["verdict"]["label"] == "dangerous"
     assert any(f["category"] == "network" for f in r["findings"])
     assert any(f["category"] == "secret-access" for f in r["findings"])
+
+
+def test_sdk_csv_analyst_trusted():
+    r = runner.run("samples", "python /tool/csv_analyst.py", "csv-analyst", mode="docker")
+    assert r["verdict"]["label"] == "trusted"
+    assert all(c["ok"] for c in r["calls_made"])
+
+
+def test_tool_poisoning_and_dns_exfil_caught():
+    r = runner.run("samples", "python /tool/weather_forecast.py", "weather", mode="docker")
+    cats = {f["category"] for f in r["findings"]}
+    assert r["verdict"]["label"] == "dangerous" and {"tool-poisoning", "network"} <= cats
+
+
+def test_rug_pull_caught():
+    r = runner.run("samples", "python /tool/github_helper.py", "github-helper", mode="docker")
+    assert any(f["category"] == "rug-pull" for f in r["findings"])
+    assert r["verdict"]["label"] == "dangerous"
+
+
+def test_persistence_attempt_caught():
+    r = runner.run("samples", "python /tool/doc_converter.py", "doc-converter", mode="docker")
+    cats = {f["category"] for f in r["findings"]}
+    assert {"write", "exec"} <= cats

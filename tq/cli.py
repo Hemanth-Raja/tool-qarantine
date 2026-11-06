@@ -22,7 +22,29 @@ def main(argv=None):
     r.add_argument("--json", action="store_true")
     r.add_argument("--save", action="store_true", help="store the report for the web UI")
 
+    h = sub.add_parser("hash", help="print a tool's code fingerprint (sha256)")
+    h.add_argument("tool_dir")
+    h.add_argument("entry", help="the entry command it was quarantined with")
+
+    k = sub.add_parser("check", help="ask a Tool Quarantine server whether this code may run; "
+                                     "exit 0 if approved, 1 otherwise (for gateways and CI)")
+    k.add_argument("tool_dir")
+    k.add_argument("entry")
+    k.add_argument("--server", default="http://localhost:8000")
+
     args = ap.parse_args(argv)
+    if args.cmd in ("hash", "check"):
+        from .fingerprint import tool_hash
+        digest = tool_hash(args.tool_dir, args.entry, "upload")
+        if args.cmd == "hash":
+            print(digest)
+            return 0
+        import urllib.request
+        with urllib.request.urlopen(f"{args.server.rstrip('/')}/api/registry/check?hash={digest}",
+                                    timeout=15) as resp:
+            res = json.load(resp)
+        print(json.dumps(res, indent=2))
+        return 0 if res.get("allowed") else 1
     if args.cmd == "run":
         rep = runner.run(args.tool_dir, args.entry, tool_name=args.name or None, mode=args.mode)
         if args.save:

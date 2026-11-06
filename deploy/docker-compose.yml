@@ -11,7 +11,7 @@ services:
     environment:
       - VULTR_API_KEY=${VULTR_API_KEY:-}          # unset -> deterministic mock agent
       - VULTR_INFERENCE_BASE=https://api.vultrinference.com/v1
-      - VULTR_MODEL=${VULTR_MODEL:-llama-3.3-70b-instruct-fp8}
+      - VULTR_MODEL=${VULTR_MODEL:-qwen3.8-27b}
       # Sandbox bind mounts are resolved by the host daemon, so per-run dirs live in a
       # dir mounted at the same path on host and in this container.
       - TMPDIR=/tmp/tq

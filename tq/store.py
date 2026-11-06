@@ -6,6 +6,7 @@ import time
 import uuid
 
 _DIR = os.environ.get("TQ_DATA_DIR", os.path.join(os.path.dirname(__file__), "..", "data"))
+DATA_DIR = _DIR
 _lock = threading.Lock()
 
 
@@ -32,14 +33,56 @@ def get_run(rid):
         return None
 
 
-def set_decision(rid, state, note=""):
+class DecisionError(ValueError):
+    pass
+
+
+def decision_rules(run, state, note, current):
+    """Who may flip what. Revoking (anything -> reject) is always one click: pulling an
+    approval must never be slowed down. Approving needs a written reason when it
+    overturns a block or when the quarantine verdict wasn't 'trusted'.
+    Returns the action label for the history."""
+    note = (note or "").strip()
+    label = (run.get("verdict") or {}).get("label")
+    if state == "reject":
+        return "approval revoked" if current == "approved" else "blocked"
+    from . import policy
+    hard = policy.blocking_hits(run)
+    if hard:
+        raise DecisionError("Workspace policy forbids approving this version ("
+                            + ", ".join(h["name"] for h in hard)
+                            + "). An admin can change the rule on the Policies page.")
+    if current == "blocked" and not note:
+        raise DecisionError("This version is blocked. Give a reason to overturn the block.")
+    if label and label != "trusted" and not note:
+        raise DecisionError(f"Quarantine rated this tool {label.upper()}. "
+                            "Give a reason to approve it anyway.")
+    return "block overturned, approved" if current == "blocked" else "approved"
+
+
+def set_decision(rid, state, note="", reviewer=""):
     r = get_run(rid)
     if not r:
         return None
-    r["decision"] = {"state": state, "note": note, "at": time.time()}
+    h = r.get("tool_hash")
+    reg = registry_entry(h) if h else None
+    current = reg["state"] if reg else {"approve": "approved", "reject": "blocked"}.get(
+        (r.get("decision") or {}).get("state"))
+    if current == ("approved" if state == "approve" else "blocked"):
+        r["registry"] = reg
+        return r  # already in that state: nothing changes, nothing to log
+    action = decision_rules(r, state, note, current)
+    now = time.time()
+    entry = {"action": action, "state": state, "note": (note or "").strip(),
+             "reviewer": (reviewer or "").strip()[:60] or "reviewer", "at": now,
+             "run_id": rid, "verdict": (r.get("verdict") or {}).get("label")}
+    r["decision"] = {"state": state, "note": entry["note"], "at": now,
+                     "reviewer": entry["reviewer"], "action": action}
+    r.setdefault("decision_history", []).append(entry)
     with _lock:
         with open(_path(rid), "w") as f:
             json.dump(r, f, indent=2)
+    r["registry"] = _register(r, state, entry)
     return r
 
 
@@ -55,3 +98,47 @@ def list_runs():
                 pass
     out.sort(key=lambda r: r.get("started", 0), reverse=True)
     return out
+
+
+# ------------------------------------------------------------------ tool registry
+# Approving a run pins that exact code (sha256 of the tool's files) to the allowlist;
+# rejecting blocks it. Agents / MCP gateways ask /api/registry/check before launching a
+# tool, so a changed tool (new hash) is unknown again and has to be re-quarantined.
+_REG = os.path.join(_DIR, "registry", "registry.json")
+
+
+def _load_registry():
+    try:
+        with open(_REG) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def registry():
+    return _load_registry()
+
+
+def registry_entry(tool_hash):
+    return _load_registry().get(tool_hash)
+
+
+def _register(run, state, entry):
+    h = run.get("tool_hash")
+    if not h:
+        return None
+    with _lock:
+        reg = _load_registry()
+        history = (reg.get(h) or {}).get("history", []) + [entry]
+        reg[h] = {"hash": h, "state": "approved" if state == "approve" else "blocked",
+                  "tool": run.get("tool"), "entry": run.get("entry"), "source": run.get("source"),
+                  "run_id": run.get("id"), "verdict": (run.get("verdict") or {}).get("label"),
+                  "score": (run.get("verdict") or {}).get("score"), "note": entry["note"],
+                  "reviewer": entry["reviewer"], "action": entry["action"], "at": entry["at"],
+                  "history": history}
+        os.makedirs(os.path.dirname(_REG), exist_ok=True)
+        tmp = _REG + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(reg, f, indent=2)
+        os.replace(tmp, _REG)
+        return reg[h]

@@ -13,7 +13,7 @@ import os
 import urllib.request
 
 VULTR_BASE = os.environ.get("VULTR_INFERENCE_BASE", "https://api.vultrinference.com/v1")
-VULTR_MODEL = os.environ.get("VULTR_MODEL", "llama-3.3-70b-instruct-fp8")
+VULTR_MODEL = os.environ.get("VULTR_MODEL", "qwen3.8-27b")
 
 SYSTEM = (
     "You are a QA agent exercising an unfamiliar tool to see what it does. You are given "
@@ -42,7 +42,7 @@ def _mock_plan(tools):
     """Deterministic, tool-agnostic plan: exercise every advertised tool with
     plausible arguments derived from its input schema."""
     plan = []
-    samples = {"query": "planning", "text": '{"b":2,"a":1}', "value": 42,
+    samples = {"query": "planning", "city": "Berlin", "location": "Berlin", "repo": "acme/billing", "number": 42, "text": '{"b":2,"a":1}', "value": 42,
                "from_unit": "km", "to_unit": "mi", "indent": 2}
     for t in tools:
         props = (t.get("inputSchema") or {}).get("properties", {})
@@ -50,6 +50,8 @@ def _mock_plan(tools):
         for name, spec in props.items():
             if name in samples:
                 args[name] = samples[name]
+            elif "default" in spec and spec["default"] not in (None, ""):
+                args[name] = spec["default"]
             elif spec.get("type") == "number" or spec.get("type") == "integer":
                 args[name] = 1
             elif spec.get("type") == "boolean":
@@ -58,6 +60,10 @@ def _mock_plan(tools):
                 args[name] = "test"
         plan.append({"name": t["name"], "arguments": args})
     return plan
+
+
+def model_label():
+    return f"Vultr {VULTR_MODEL}" if os.environ.get("VULTR_API_KEY") else "Mock agent"
 
 
 def plan_calls(tools):

@@ -1,0 +1,5 @@
+[user]
+	name = Dana Decoy
+	email = dana.decoy@tq-demo.example
+[credential]
+	helper = store

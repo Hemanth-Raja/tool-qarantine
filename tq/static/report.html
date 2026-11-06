@@ -1,58 +1,329 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Trust report — Tool Quarantine</title><link rel="stylesheet" href="/static/app.css"></head>
-<body><div class="wrap">
-<header class="top"><div class="logo">TQ</div><div><h1>Trust report</h1></div></header>
-<p class="tag"><a href="/">← all runs</a></p>
-<div id="app"><p class="empty"><span class="spin"></span> loading…</p></div>
+<title>Trust report · Tool Quarantine</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('tq-theme')||'dark'}catch(e){document.documentElement.dataset.theme='dark'}</script>
+<link rel="stylesheet" href="/static/app.css"></head>
+<body data-nav="scans" data-title="Trust report" data-hidehead="1">
+<main id="page">
+<div class="rhead">
+  <div><div class="muted" style="font-size:12px;letter-spacing:.6px;text-transform:uppercase">Trust report</div>
+    <h1 id="toolname">…</h1><div class="meta" id="meta"></div></div>
+  <div class="sp"></div>
+  <span id="status"></span>
+  <button class="ghost hide" id="replay">↻ Replay run</button>
+  <div class="row noprint" id="ractions">
+    <button class="ghost" onclick="copyText(location.href,'Link to this report copied')">Copy link</button>
+    <a class="btn ghost" id="exportjson" href="#">Export JSON</a>
+    <button class="ghost" onclick="window.print()">Save as PDF</button>
+  </div>
 </div>
+<div class="contain">
+  <span>No route to the internet</span><span>DNS + HTTP sinkhole</span><span>Read-only filesystem</span>
+  <span>All capabilities dropped</span><span>Decoy credentials planted</span><span>Destroyed after run</span>
+</div>
+
+<div class="grid2">
+  <div class="card tight">
+    <div class="feedhead"><h2>Live activity</h2><span class="sp"></span>
+      <span class="dim" style="font-size:12px" id="noise"></span></div>
+    <div class="feed" id="feed"></div>
+  </div>
+  <div>
+    <div class="card" id="vcard">
+      <div class="verdict-hero">
+        <div class="ring" id="ring" style="--v:0;--c:var(--line2)"><div class="inner" id="score">…</div></div>
+        <div><div class="muted" style="font-size:12px;letter-spacing:.6px">VERDICT</div>
+          <div class="vlabel" id="vlabel" style="color:var(--muted)">Observing</div>
+          <div class="muted" id="vsum" style="font-size:13.5px">The tool is running in the sandbox. Watch the feed.</div></div>
+      </div>
+      <div class="counters">
+        <div class="ctr" id="c-files"><div class="v">0</div><div class="l">files it read</div></div>
+        <div class="ctr" id="c-secrets"><div class="v">0</div><div class="l">credentials touched</div></div>
+        <div class="ctr" id="c-net"><div class="v">0</div><div class="l">network attempts</div></div>
+        <div class="ctr" id="c-exfil"><div class="v">0</div><div class="l">exfiltrations blocked</div></div>
+      </div>
+    </div>
+    <div class="card" id="approval">
+      <h2>Decision</h2>
+      <p class="sub" id="fp">Approving pins this exact code to your tool allowlist. Rejecting blocks it.</p>
+      <div id="polbox"></div>
+      <div id="effect"></div>
+      <div id="decide-ui"></div>
+      <p class="err" id="decerr" style="margin:8px 0 0"></p>
+      <div id="hist"></div>
+    </div>
+  </div>
+</div>
+
+<div class="card hide" id="blast">
+  <div class="cardhead"><div><h2>Blast radius</h2>
+    <p class="sub" style="margin:2px 0 0">Everything the tool reached for, and where the sandbox wall stopped it. Hover a node for the evidence.</p></div>
+    <span class="sp"></span><div id="blastsum"></div></div>
+  <div class="blastgrid"><div class="chart" id="blastsvg"></div><div id="blastlist"></div></div>
+</div>
+<div class="card hide" id="claims">
+  <h2>Claims vs. reality</h2>
+  <p class="sub">What the tool says about itself in its MCP description, next to what the sandbox saw it do.</p>
+  <div id="claimsbody"></div>
+</div>
+<div class="card hide" id="findings"></div>
+<div class="card hide" id="details"></div>
+</main>
+<script src="/static/shell.js"></script>
 <script>
+const $=id=>document.getElementById(id);
+const rid=location.pathname.split('/').pop();
+document.getElementById('exportjson').href=`/api/runs/${rid}/export`;
 const CLR={trusted:'var(--trusted)',review:'var(--review)',suspicious:'var(--suspicious)',dangerous:'var(--dangerous)'};
-const rid = location.pathname.split('/').pop();
-function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
-async function load(){
-  const r = await (await fetch('/api/runs/'+rid)).json();
-  const v=r.verdict, d=r.decision||{state:'pending'};
-  const dur=(r.finished-r.started)||0;
-  document.getElementById('app').innerHTML = `
-  <div class="card verdict-hero">
-    <div class="ring" style="--v:${v.score};--c:${CLR[v.label]}"><div class="inner">${v.score}</div></div>
-    <div><div style="font-size:13px" class="muted">VERDICT</div>
-      <div style="font-size:26px;font-weight:800;text-transform:capitalize;color:${CLR[v.label]}">${v.label}</div>
-      <div class="muted">${esc(v.summary)}</div></div>
-  </div>
-  <div class="card">
-    <div class="kv">
-      <div class="k">Tool</div><div>${esc(r.tool)} — <span class=muted>${esc(r.entry)}</span></div>
-      <div class="k">Sandbox</div><div>${r.mode} mode · exercised by <b>${esc(r.agent)}</b> agent · ${dur.toFixed(1)}s · destroyed after run</div>
-      <div class="k">Advertised</div><div>${r.advertised_tools.map(t=>`<code>${esc(t.name)}</code>`).join(' ')||'—'}</div>
-      <div class="k">Calls made</div><div>${r.calls_made.map(c=>`<code>${esc(c.name)}</code>`).join(' ')||'—'}</div>
-    </div>
-  </div>
-  <div class="card">
-    <h3 style="margin-top:0">What it did (${r.findings.length} finding${r.findings.length==1?'':'s'})</h3>
-    ${r.findings.length?r.findings.map(f=>`
-      <div class="finding ${f.severity}">
-        <h3><span class="sev ${f.severity}">${f.severity}</span> ${esc(f.title)}</h3>
-        <p>${esc(f.detail)}</p>
-        ${f.evidence.length?`<div class="ev">${f.evidence.map(esc).join('\n')}</div>`:''}
-      </div>`).join(''):'<p class="muted">Nothing beyond its declared scope. Clean.</p>'}
-  </div>
-  <div class="card">
-    <h3 style="margin-top:0">Approval</h3>
-    <p class="muted">Current decision: <span class="badge b-${d.state}">${d.state}</span> ${d.note?('— '+esc(d.note)):''}</p>
-    <div class="runbar">
-      <input id="note" placeholder="reason (optional)" style="flex:1;min-width:200px">
-      <button class="ok" onclick="decide('approve')">Approve</button>
-      <button class="bad" onclick="decide('reject')">Reject</button>
-    </div>
-  </div>`;
+const ICON={phase:'◆',tools:'▤',plan:'✦',call:'→',result:'←',file:'▸',secret:'⚿',dns:'◎',net:'⇄',exfil:'⛔',exec:'⚡',write:'✎',verdict:'■',error:'✖',poison:'☠',policy:'⚖'};
+function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+let report=null, queue=[], shown=0, cursor=0, playing=false, live=false, lastT=0, counts={};
+
+function resetFeed(){ $('feed').innerHTML='<div class="cursor" id="cur"></div>'; counts={files:0,secrets:0,net:0,exfil:0};
+  setCounters(); lastT=0; shown=0; hideVerdict(); }
+function setCounters(){
+  for(const k of ['files','secrets','net','exfil']){const el=$('c-'+k); el.querySelector('.v').textContent=counts[k]||0;
+    el.classList.toggle('hot',(k==='secrets'||k==='exfil')&&counts[k]>0);
+    el.classList.toggle('warm',(k==='files'||k==='net')&&counts[k]>0);}
+}
+function bump(ev){
+  if(ev.kind==='file'&&ev.title.startsWith('Read'))counts.files++;
+  if(ev.kind==='secret'){counts.files++;counts.secrets++}
+  if(ev.kind==='net'||ev.kind==='dns')counts.net++;
+  if(ev.kind==='exfil'){counts.net++;counts.exfil++}
+  setCounters();
+}
+function addEvent(ev, animate){
+  const d=document.createElement('div');
+  d.className=`ev ${ev.level} ${ev.kind}`+(animate&&ev.level==='crit'?' flash':'');
+  if(!animate)d.style.animation='none';
+  d.innerHTML=`<span class=t>+${ev.t.toFixed(2)}s</span><span class=ic>${ICON[ev.kind]||'·'}</span><span class=ti>${esc(ev.title)}</span>`+
+    (ev.detail?`<span class=de>${esc(ev.detail)}</span>`:'');
+  const f=$('feed'), cur=$('cur'); f.insertBefore(d,cur); f.scrollTop=f.scrollHeight;
+  bump(ev); shown++;
+  if(ev.kind==='verdict'&&report&&report.verdict)showVerdict(report.verdict);
+}
+// paced playback, so a 2-second run reads like a story
+function pump(){
+  if(playing)return; playing=true;
+  (function step(){
+    if(!queue.length){playing=false; maybeFinish(); return}
+    const ev=queue.shift(); addEvent(ev,true);
+    const nxt=queue[0]; let gap=nxt?Math.min(900,Math.max(170,(nxt.t-ev.t)*1000)):0;
+    if(ev.level==='crit')gap=Math.max(gap,650);
+    if(ev.kind==='phase'||ev.kind==='plan')gap=Math.max(gap,300);
+    setTimeout(step,gap);
+  })();
+}
+async function poll(){
+  try{
+    const j=await (await fetch(`/api/runs/${rid}/live?after=${cursor}`)).json();
+    cursor+=j.events.length; queue.push(...j.events); pump();
+    if(j.runtime_files)$('noise').textContent=`${j.runtime_files} runtime/library syscalls filtered`;
+    if(j.running){setTimeout(poll,300)}else{live=false; await fetchReport(); maybeFinish()}
+  }catch(e){setTimeout(poll,1000)}
+}
+async function fetchReport(){ report=await (await fetch('/api/runs/'+rid)).json(); }
+function maybeFinish(){
+  if(live||playing||queue.length||!report||report.status==='running')return;
+  setStatus(report); renderAll(report); if(report.verdict)showVerdict(report.verdict);
+  $('replay').classList.remove('hide');
+}
+function setStatus(r){
+  const st=r.status||'done';
+  $('status').innerHTML=st==='running'?'<span class="badge b-running"><span class="dot live"></span>running in sandbox</span>'
+    : st==='error'?'<span class="badge b-error">run failed</span>':'<span class="badge b-ok">sandbox destroyed</span>';
+}
+function hideVerdict(){ $('ring').style.cssText='--v:0;--c:var(--line2)'; $('score').textContent='…';
+  $('vlabel').textContent='Observing'; $('vlabel').style.color='var(--muted)';
+  $('vsum').textContent='The tool is running in the sandbox. Watch the feed.'; }
+function showVerdict(v){ $('ring').style.cssText=`--v:${v.score};--c:${CLR[v.label]}`; $('score').textContent=v.score;
+  $('vlabel').textContent=v.label; $('vlabel').style.color=CLR[v.label]; $('vsum').textContent=v.summary; }
+function header(r){
+  $('toolname').textContent=r.tool||'tool'; document.title=`${r.tool} · Trust report`;
+  const cb=document.querySelector('.crumbs b'); if(cb)cb.innerHTML=`<a href="/app/scans" style="color:var(--muted)">Scans</a> <span class=dim>/</span> ${esc(r.tool||'tool')}`;
+  $('meta').innerHTML=[r.source&&esc(r.source), r.entry&&`<code>${esc(r.entry)}</code>`, r.agent&&('agent: '+esc(r.agent)),
+    r.mode&&esc(r.mode+' sandbox'), r.finished&&((r.finished-r.started).toFixed(1)+'s')].filter(Boolean).join(' · ');
+  renderDecision(r);
+}
+function short(h){return h?h.slice(0,12):''}
+function when(t){return t?new Date(t*1000).toLocaleString():''}
+function curState(r){
+  if(r.registry)return r.registry.state;                       // decisions follow the code fingerprint
+  const d=(r.decision||{}).state; return d==='approve'?'approved':d==='reject'?'blocked':'pending';
+}
+function renderDecision(r){
+  const h=r.tool_hash, st=curState(r), d=r.registry||r.decision||{}, v=r.verdict||{};
+  $('fp').innerHTML=h?`Code fingerprint <code title="${h}">sha256:${short(h)}</code>. Decisions apply to this exact code, in every run of it.`
+    :'This run predates code fingerprints. Run the tool again to pin or block it.';
+  const check=h?`${location.origin}/api/registry/check?hash=${h}`:'';
+  let html='';
+  if(st==='approved'){
+    html=`<div class="effect ok"><b>✓ Approved and pinned to the allowlist</b>
+      <p>Agents and MCP gateways that ask the registry may launch <b>${esc(r.tool)}</b>, but only this exact code.
+      If a single byte changes, the fingerprint changes and the new version has to be quarantined again, so a later "update" can't slip in a rug pull.</p>
+      ${h?`<div class="evi">$ curl ${esc(check)}\n{"allowed": true, "state": "approved", "tool": "${esc(r.tool)}"}</div>`:''}</div>`;
+  }else if(st==='blocked'){
+    html=`<div class="effect bad"><b>⛔ Blocked</b>
+      <p>This version of <b>${esc(r.tool)}</b> is on the blocklist. Any agent or gateway that checks the registry will refuse to launch it.</p>
+      ${h?`<div class="evi">$ curl ${esc(check)}\n{"allowed": false, "state": "blocked", "tool": "${esc(r.tool)}"}</div>`:''}</div>`;
+  }
+  $('effect').innerHTML=html;
+  const pol=r.policy_now, blockers=pol?pol.hits.filter(h=>h.action==='block'):[];
+  $('polbox').innerHTML=pol&&pol.hits.length?`<div class="polbox ${pol.outcome}">
+    <div class="ph"><b>⚖ Workspace policy: ${pol.outcome==='blocked'?'approval not allowed':'needs a written reason'}</b>
+      <a href="/app/policies" class="dim" style="font-size:12.5px">edit policies →</a></div>
+    ${pol.hits.map(h=>`<div class="prule"><span class="badge b-${h.action==='block'?'blocked':'review'}">${h.action==='block'?'block':'review'}</span>
+      <span><b>${esc(h.name)}</b> <span class="dim">· ${esc(h.because.join('; '))}</span></span></div>`).join('')}</div>`:'';
+  window.POLICY_BLOCKED=blockers.length>0;
+  // controls depend on the current state
+  const risky=v.label&&v.label!=='trusted', name=`<input id="reviewer" placeholder="your name" style="width:130px" value="${esc(getName())}">`;
+  let ui='';
+  const pb=window.POLICY_BLOCKED, dis=pb?' disabled title="Workspace policy forbids approving this version"':'';
+  if(st==='pending'){
+    ui=`<div class="row">${name}<input id="note" placeholder="${risky?`reason (required to approve: rated ${v.label})`:'reason (optional)'}" style="flex:1;min-width:160px"></div>
+      <div class="row" style="margin-top:8px"><button class="ok" onclick="decide('approve')"${dis}>Approve</button>
+      <button class="bad" onclick="decide('reject')">Reject</button></div>`;
+  }else if(st==='approved'){
+    ui=`<div class="row">${name}<input id="note" placeholder="reason (optional)" style="flex:1;min-width:160px">
+      <button class="bad" onclick="decide('reject')">Revoke approval</button></div>
+      <p class="dim" style="font-size:12.5px;margin:6px 0 0">Revoking is always one click and takes effect on the next registry check.</p>`;
+  }else{
+    ui=`<div class="row">${name}<input id="note" placeholder="reason (required to overturn the block)" style="flex:1;min-width:160px">
+      <button class="ghost" onclick="decide('approve')"${dis}>Overturn block &amp; approve</button></div>
+      <p class="dim" style="font-size:12.5px;margin:6px 0 0">${pb?'A workspace policy keeps this version blocked. An admin can relax the rule on the Policies page.':"Overturning a block needs a written reason, and it's kept in the history below."}</p>`;
+  }
+  $('decide-ui').innerHTML=ui;
+  const hist=(r.registry&&r.registry.history)||r.decision_history||[];
+  $('hist').innerHTML=hist.length?`<div class="hist"><div class="hh">Decision history</div>${hist.slice().reverse().map(e=>`
+    <div class="hi ${e.state}"><span class="hd"></span><div><b>${esc(e.action)}</b> by ${esc(e.reviewer)}
+      <span class="dim">· ${esc(when(e.at))}${e.run_id!==rid?` · <a href="/run/${e.run_id}">other run</a>`:''}</span>
+      ${e.note?`<div class="hn">“${esc(e.note)}”</div>`:''}</div></div>`).join('')}</div>`:'';
+}
+function getName(){return store.get('tq-reviewer','')}
+function setName(n){try{localStorage.setItem('tq-reviewer',n)}catch(e){}}
+const CLAIM_TXT={declared:'Says it does this',denied:'Says it does NOT',silent:'Not mentioned'};
+const STATUS_TXT={ok:'as claimed',unused:'not used',unexpected:'unexpected',overreach:'over-reach'};
+function renderAll(r){
+  header(r);
+  if(r.status==='error'){ $('findings').classList.remove('hide');
+    $('findings').innerHTML=`<h2>Run failed</h2><p class="err">${esc(r.error)}</p>`; return; }
+  renderBlast(r);
+  // claims vs reality
+  if(r.scope){
+    const hl=d=>esc(d).replace(/(&lt;\s*(important|system|instructions?|secret)\s*&gt;[\s\S]*?(&lt;\/\s*\2\s*&gt;|$))/gi,'<span class="poison">$1</span>');
+    const quotes=(r.advertised_tools||[]).map(t=>`<div><code>${esc(t.name)}</code> “${hl(t.description)}”</div>`).join('');
+    $('claimsbody').innerHTML=`<div class="claims-quote">${quotes||'<span class=muted>no descriptions</span>'}</div>
+    <div class="diff"><div class="hdr"><div>Area</div><div>What it claims</div><div>What it actually did</div><div>Result</div></div>
+    ${r.scope.map(x=>`<div class="r ${x.status}">
+      <div class="area"><b>${esc(x.label)}</b><span>${esc(x.hint)}</span></div>
+      <div class="claimcol"><span class="badge b-${x.claim}">${CLAIM_TXT[x.claim]}</span>${x.quote?`<div class=q>“${esc(x.quote)}”</div>`:''}</div>
+      <div class="actcol">${x.count?`<span class="${x.status==='overreach'?'minus':'plus'}">${x.status==='overreach'?'!':'+'}</span>${x.count} observed`:'<span class=dim>nothing</span>'}
+        ${x.count?`<div class=acts>${x.actual.map(esc).join('<br>')}${x.count>x.actual.length?'<br>…':''}</div>`:''}</div>
+      <div><span class="badge b-${x.status}">${x.status==='ok'&&!x.count?'clean':STATUS_TXT[x.status]}</span></div></div>`).join('')}</div>`;
+    $('claims').classList.remove('hide');
+  }
+  // findings
+  const fs=r.findings||[];
+  $('findings').innerHTML=`<h2>Findings (${fs.length})</h2>`+(fs.length?fs.map(f=>`
+    <div class="finding ${f.severity}"><h3><span class="sev ${f.severity}">${f.severity}</span> ${esc(f.title)}</h3>
+    <p>${esc(f.detail)}</p>${f.evidence.length?`<div class="evi">${f.evidence.map(esc).join('\n')}</div>`:''}</div>`).join('')
+    :'<p class="muted">Nothing beyond its declared scope. Clean.</p>');
+  $('findings').classList.remove('hide');
+  // calls
+  $('details').innerHTML=`<h2>What the agent asked it to do</h2><p class="sub">Calls chosen by ${esc(r.agent)} from the tool's advertised functions.</p>
+    <div class="kv">${(r.calls_made||[]).map(c=>`<div class=k><code>${esc(c.name)}</code></div>
+    <div><div class="mono dim" style="font-size:12px">${esc(JSON.stringify(c.arguments))}</div>
+    <div class="evi" style="margin-top:4px">${esc(c.output||(c.ok?'(no output)':'(failed)'))}</div></div>`).join('')||'<div class=muted>no calls</div>'}</div>`;
+  $('details').classList.remove('hide');
+}
+
+// ---- blast radius: the tool in the middle, the sandbox wall around it, and every area it reached for
+const BR_ICON={workspace:'▤',home:'⌂',secrets:'⚿',network:'⇄',processes:'⚡',writes:'✎'};
+function blastItems(r){
+  const fs=r.findings||[], ev=c=>fs.filter(f=>f.category===c).flatMap(f=>f.evidence||[]);
+  return (r.scope||[]).map(x=>{
+    let acts=[...(x.actual||[])];
+    if(x.area==='network'&&!acts.length)acts=ev('network');
+    if(x.area==='writes'&&!acts.length)acts=ev('write');
+    if(x.area==='processes'&&!acts.length)acts=ev('exec');
+    const n=Math.max(x.count||0,acts.length);
+    let st=x.status; if(n&&st==='ok'&&x.claim!=='declared'&&['network','writes','secrets'].includes(x.area))st='overreach';
+    const kind=!n?'none':st==='overreach'?'stopped':st==='unexpected'?'odd':'ok';
+    return {...x,acts,n,kind};
+  });
+}
+function renderBlast(r){
+  if(!r.scope)return;
+  const it=blastItems(r), W=640,H=380,cx=W/2,cy=H/2,R0=44,RW=104,R1=158;
+  const C={none:'var(--line2)',ok:'var(--trusted)',odd:'var(--review)',stopped:'var(--dangerous)'};
+  let g=`<defs><radialGradient id="brg"><stop offset="0" stop-color="rgba(var(--accent-rgb),.22)"/><stop offset="1" stop-color="rgba(var(--accent-rgb),0)"/></radialGradient></defs>
+    <circle cx="${cx}" cy="${cy}" r="${RW+40}" fill="url(#brg)"/>
+    <circle cx="${cx}" cy="${cy}" r="${RW}" fill="none" stroke="var(--accent)" stroke-opacity=".55" stroke-width="2" stroke-dasharray="6 6" class="wall"/>
+    <text x="${cx}" y="${cy+RW+18}" text-anchor="middle" font-size="10.5" font-weight="700" letter-spacing="1" fill="var(--accent-ink)">SANDBOX WALL</text>`;
+  it.forEach((x,i)=>{
+    const a=-Math.PI/2+i*2*Math.PI/it.length+Math.PI/it.length, ca=Math.cos(a), sa=Math.sin(a);
+    const nx=cx+R1*1.55*ca, ny=cy+R1*sa, inside=x.area==='workspace';
+    const tx=inside?cx+(RW-34)*ca:nx, ty=inside?cy+(RW-34)*sa:ny;
+    const c=C[x.kind];
+    if(x.kind==='none'){g+=`<line x1="${cx+R0*ca}" y1="${cy+R0*sa}" x2="${tx-22*ca}" y2="${ty-22*sa}" stroke="var(--line2)" stroke-width="1.5" stroke-dasharray="2 5"/>`}
+    else if(x.kind==='stopped'){
+      const wx=cx+RW*ca, wy=cy+RW*sa;
+      g+=`<line x1="${cx+R0*ca}" y1="${cy+R0*sa}" x2="${wx}" y2="${wy}" stroke="${c}" stroke-width="2.5" class="ray"/>
+        <line x1="${wx}" y1="${wy}" x2="${tx-24*ca}" y2="${ty-24*sa}" stroke="${c}" stroke-width="1.5" stroke-dasharray="3 4" stroke-opacity=".5"/>
+        <g transform="translate(${wx},${wy})"><circle r="11" fill="var(--panel)" stroke="${c}" stroke-width="2"/>
+        <path d="M-4,-4 L4,4 M4,-4 L-4,4" stroke="${c}" stroke-width="2.2" stroke-linecap="round"/></g>`;
+    }else g+=`<line x1="${cx+R0*ca}" y1="${cy+R0*sa}" x2="${tx-22*ca}" y2="${ty-22*sa}" stroke="${c}" stroke-width="2.5"/>`;
+    const lab=x.label.replace(' outside workspace','').replace('Credentials & keys','Credentials');
+    g+=`<g class="bnode" data-i="${i}" transform="translate(${tx},${ty})" style="cursor:default">
+      <circle r="21" fill="var(--panel)" stroke="${c}" stroke-width="${x.kind==='none'?1.5:2.5}"/>
+      <text y="5" text-anchor="middle" font-size="15" fill="${x.kind==='none'?'var(--dim)':c}">${BR_ICON[x.area]||'•'}</text>
+      <text y="${inside?-28:38}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">${esc(lab)}</text>
+      ${inside?'':`<text y="53" text-anchor="middle" font-size="11" fill="var(--muted)">${x.n?x.n+' attempt'+(x.n>1?'s':''):'untouched'}</text>`}
+      <circle r="34" fill="transparent"/></g>`;
+  });
+  g+=`<circle cx="${cx}" cy="${cy}" r="${R0}" fill="var(--panel2)" stroke="var(--line2)"/>
+    <text x="${cx}" y="${cy-3}" text-anchor="middle" font-size="${(r.tool||'').length>13?10:12}" font-weight="700" fill="var(--ink)" font-family="var(--mono)">${esc((r.tool||'tool').slice(0,18))}</text>
+    <text x="${cx}" y="${cy+13}" text-anchor="middle" font-size="10" fill="var(--muted)">the tool</text>`;
+  $('blastsvg').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Blast radius diagram">${g}</svg><div class="tip" id="btip"></div>`;
+  const stopped=it.filter(x=>x.kind==='stopped'), tot=stopped.reduce((a,x)=>a+x.n,0);
+  $('blastsum').innerHTML=stopped.length?`<span class="badge b-dangerous">${tot} attempt${tot>1?'s':''} stopped at the wall</span>`
+    :`<span class="badge b-trusted">stayed inside its scope</span>`;
+  $('blastlist').innerHTML=`<div class="brh">Blast radius outside the sandbox</div><div class="brbig">0 <span>bytes · files · hosts</span></div>
+    ${it.map(x=>`<div class="bri ${x.kind}"><span class="brd"></span><div><b>${esc(x.label)}</b>
+      <div class="dim" style="font-size:12.5px">${x.kind==='none'?'not touched':x.kind==='stopped'?`${x.n} contained · ${esc(String(x.acts[0]||'').replace(/\s+\(not declared\)/,''))}`:x.kind==='odd'?`${x.n} unexpected, inside the sandbox`:`${x.n} as claimed`}</div></div></div>`).join('')}`;
+  const tip=$('btip');
+  $('blastsvg').querySelectorAll('.bnode').forEach(el=>{
+    el.addEventListener('mouseenter',()=>{const x=it[+el.dataset.i];
+      tip.innerHTML=`<b>${esc(x.label)}</b><br><span class=dim>${esc(x.hint)}</span>`+(x.acts.length?'<br>'+x.acts.slice(0,5).map(a=>`<span class=mono style="font-size:11.5px">${esc(a)}</span>`).join('<br>'):'<br>nothing');
+      const b=$('blastsvg').getBoundingClientRect(), e=el.getBoundingClientRect();
+      tip.style.left=Math.max(0,Math.min(b.width-260,e.left-b.left-60))+'px'; tip.style.top=(e.bottom-b.top+6)+'px'; tip.classList.add('show')});
+    el.addEventListener('mouseleave',()=>tip.classList.remove('show'));
+  });
+  $('blast').classList.remove('hide');
 }
 async function decide(state){
-  const note=document.getElementById('note').value;
-  await fetch('/api/runs/'+rid+'/decide',{method:'POST',headers:{'content-type':'application/json'},
-    body:JSON.stringify({state,note})});
-  load();
+  const v=(report&&report.verdict)||{}, note=$('note').value.trim(), reviewer=$('reviewer').value.trim(), st=curState(report);
+  $('decerr').textContent='';
+  if(state==='approve'&&!note&&(st==='blocked'||(v.label&&v.label!=='trusted'))){
+    $('decerr').textContent=st==='blocked'?'Give a reason to overturn the block.':`Quarantine rated this tool ${v.label.toUpperCase()}. Give a reason to approve it anyway.`;
+    $('note').focus(); return;
+  }
+  setName(reviewer);
+  const res=await fetch('/api/runs/'+rid+'/decide',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({state,note,reviewer})});
+  if(!res.ok){$('decerr').textContent=(await res.json()).detail||'could not save the decision';return}
+  await fetchReport(); header(report);
 }
-load();
+$('replay').onclick=()=>{ if(!report||!report.timeline)return; resetFeed();
+  queue=report.timeline.map(e=>({...e})); pump(); };
+(async function init(){
+  resetFeed();
+  await fetchReport(); header(report); setStatus(report);
+  if(report.status==='running'){ live=true; report=null; poll(); }
+  else{ (report.timeline||[]).forEach(e=>addEvent(e,false));
+    if(report.runtime_files)$('noise').textContent=`${report.runtime_files} runtime/library syscalls filtered`;
+    maybeFinish(); }
+})();
 </script></body></html>
