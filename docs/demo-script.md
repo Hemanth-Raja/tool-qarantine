@@ -1,8 +1,10 @@
 # Demo video script
 
+**▶ Watch: https://youtu.be/WwdBYWjYljU** (3:41, recorded live on the Vultr VM)
+
 The narrated demo video is about 3:40, by Team Spartans. It opens with a hook (the tool's promise, then what it really does), then the team card. Narration is generated with the open-source
 [Kokoro](https://github.com/thewh1teagle/kokoro-onnx) voice (af_heart, about 150 words a minute),
-and the recorder holds every scene until its line has finished, so voice and screen stay in sync. The MP4 carries an English subtitle track, and mix.py writes the same subtitles as an .srt for YouTube.
+and the recorder holds every scene until its line has finished, so voice and screen stay in sync. The video has English subtitles.
 
 ## Run sheet
 
@@ -28,21 +30,6 @@ and the recorder holds every scene until its line has finished, so voice and scr
 | 3:27 | End card: tagline, live demo, code, Team Spartans | Tool Quarantine, by Team Spartans. Sandboxes on Vultr, an agent on Vultr Serverless Inference. Don't install an agent tool until you've watched it run. |
 
 Times are from the reference recording; a live run shifts them by a few seconds, and the mix follows the real timings.
-
-## Make the video
-
-```bash
-# 1. Voice (only when demo/voiceover/scenes.json changes). Model files:
-#    github.com/thewh1teagle/kokoro-onnx/releases/tag/model-files-v1.0
-pip install kokoro-onnx soundfile numpy
-python demo/voiceover/make_voice.py kokoro-v1.0.onnx voices-v1.0.bin
-
-# 2. Record against a running console (seed a few sample scans first)
-node demo/record_demo_vo.js http://199.247.22.132 out
-
-# 3. Lay the voice on the video at the logged scene times
-python demo/voiceover/mix.py out/*.webm out/timings.json tool-quarantine-demo.mp4
-```
 
 ## Checks before upload
 
