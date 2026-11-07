@@ -11,7 +11,7 @@
 [![Bytes leaked](https://img.shields.io/badge/bytes%20that%20left%20the%20sandbox-0-2f6f4a)](#how-the-sandbox-contains-a-tool)
 [![Built on Vultr](https://img.shields.io/badge/built%20on-Vultr-007bfc)](#vultr-technology)
 
-**[Live demo](http://199.247.22.132/)** · **[▶ Demo video (3:41, live)](https://youtu.be/WwdBYWjYljU)** · **[Slide deck](docs/tool-quarantine-deck.pdf)** · **[▶ Run it locally](#try-it)** · **[Video script](docs/demo-script.md)**
+**[Live demo](http://199.247.22.132/)** · **[▶ Demo video (3:41, live)](https://youtu.be/WwdBYWjYljU)** · **[Slide deck](docs/tool-quarantine-deck.pdf)** · **[▶ Run it locally](#try-it)**
 
 </div>
 
