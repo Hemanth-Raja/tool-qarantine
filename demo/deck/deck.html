@@ -1,0 +1,343 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Tool Quarantine · deck</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+@page{size:960px 540px;margin:0}
+*{box-sizing:border-box}
+:root{--paper:#f2f2ee;--card:#fafaf7;--ink:#14181d;--ink2:#3d4550;--mute:#6b7380;--line:#e1e1da;
+  --night:#0f1418;--night2:#161d23;--nline:#26313a;--nink:#e9edf1;--nmute:#93a0ad;
+  --acc:#5b5bf0;--acc2:#8e5cf0;--accn:#a3a8ff;--ok:#1f9d5c;--okn:#3ed68a;--warn:#c27c0e;--bad:#d6334b;--badn:#ff6b7f}
+body{margin:0;font-family:"IBM Plex Sans",sans-serif;-webkit-font-smoothing:antialiased}
+.s{width:960px;height:540px;padding:52px 52px 40px;position:relative;overflow:hidden;page-break-after:always;background:var(--paper);color:var(--ink)}
+.s.d{background:var(--night);color:var(--nink)}
+.k{font-family:"IBM Plex Mono";font-size:10.5px;letter-spacing:2.2px;text-transform:uppercase;color:var(--acc);margin-bottom:8px}
+.d .k{color:var(--accn)}
+h1{font-family:"Space Grotesk";font-size:54px;line-height:1.02;letter-spacing:-1.2px;margin:0 0 14px;font-weight:700}
+h2{font-family:"Space Grotesk";font-size:30px;line-height:1.12;letter-spacing:-.5px;margin:0 0 20px;font-weight:600}
+p{margin:0}
+.pn{position:absolute;right:52px;bottom:30px;font-family:"IBM Plex Mono";font-size:10.5px;color:var(--mute)}
+.d .pn{color:var(--nmute)}
+.src{position:absolute;left:52px;bottom:30px;font-size:9.5px;color:var(--mute);max-width:760px}
+.d .src{color:var(--nmute)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:7px;padding:12px 14px}
+.d .card{background:var(--night2);border-color:var(--nline)}
+.card b{display:block;font-family:"Space Grotesk";font-weight:600;font-size:15.5px;margin-bottom:3px}
+.card span{font-size:11.5px;line-height:1.45;color:var(--ink2);display:block}
+.d .card span{color:var(--nmute)}
+.n{font-family:"IBM Plex Mono";font-size:10.5px;color:var(--mute);display:block;margin-bottom:4px}
+.grid{display:grid;gap:10px}
+.big{font-family:"Space Grotesk";font-weight:700;letter-spacing:-1.5px;line-height:1}
+.mono{font-family:"IBM Plex Mono"}
+.bar{background:var(--night);color:var(--nink);border-radius:8px;padding:14px 18px;font-size:13px;line-height:1.55}
+.acc{color:var(--accn)}
+img.shot{display:block;border-radius:6px;border:1px solid var(--nline);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.s:not(.d) img.shot{border-color:#cfcfc6;box-shadow:0 8px 24px rgba(20,24,29,.12)}
+ul{margin:0;padding-left:16px}li{font-size:12px;line-height:1.5;margin:3px 0}
+.d li{color:var(--nmute)}.d li b{color:var(--nink)}
+.term{font-family:"IBM Plex Mono";font-size:11.5px;line-height:1.75;background:#080b0e;border:1px solid var(--nline);border-radius:8px;padding:12px 16px;color:#c9d1d9}
+.term .t{color:#5d6975}.term .c{color:var(--badn)}.term .p{color:var(--accn)}
+.pill{display:inline-block;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px;color:#fff;margin-right:6px}
+.legend{position:absolute;left:52px;bottom:26px}
+table{border-collapse:collapse;width:100%;font-size:11.5px}
+th{font-family:"IBM Plex Mono";font-weight:500;font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--mute);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.d th{color:var(--nmute);border-color:var(--nline)}.d td{border-color:var(--nline)}
+.tag{font-family:"IBM Plex Mono";font-size:10px;padding:1px 7px;border-radius:4px}
+.t-ok{background:rgba(31,157,92,.14);color:var(--ok)}.t-warn{background:rgba(194,124,14,.14);color:var(--warn)}.t-bad{background:rgba(214,51,75,.13);color:var(--bad)}
+.d .t-ok{color:var(--okn)}.d .t-bad{color:var(--badn)}
+.box{border:1.5px solid;border-radius:7px;padding:8px 10px;background:var(--card);font-size:11px;line-height:1.35}
+.box b{font-family:"Space Grotesk";font-size:13px;display:block}
+.box span{color:var(--ink2)}
+</style></head><body>
+
+<!-- 1 -->
+<section class="s d">
+  <div class="k" style="margin-top:6px">Vultr Agent Rush 2026 · Track: Blast Radius Zero</div>
+  <h1 style="margin-top:60px">Tool Quarantine</h1>
+  <p style="font-family:'Space Grotesk';font-size:24px;line-height:1.25;font-weight:500">Watch an agent tool run.<br>Then decide.</p>
+  <p style="font-size:12.5px;color:var(--nmute);max-width:470px;margin-top:16px;line-height:1.55">A disposable, network-sinkholed sandbox for untrusted MCP servers, on <span class="acc">Vultr Cloud Compute</span>, with an agent on <span class="acc">Vultr Serverless Inference</span> that uses each tool like a real user.</p>
+  <svg style="position:absolute;right:56px;top:96px" width="340" height="300" viewBox="0 0 340 300">
+    <circle cx="170" cy="150" r="100" fill="none" stroke="#a3a8ff" stroke-opacity=".7" stroke-width="2" stroke-dasharray="6 6"/>
+    <circle cx="170" cy="150" r="34" fill="#161d23" stroke="#26313a"/><text x="170" y="155" text-anchor="middle" font-family="IBM Plex Mono" font-size="12" fill="#e9edf1">tool</text>
+    <g stroke="#ff6b7f" stroke-width="2.5"><line x1="194" y1="126" x2="241" y2="79"/><line x1="204" y1="160" x2="268" y2="180"/><line x1="146" y1="174" x2="99" y2="221"/></g>
+    <g fill="#0f1418" stroke="#ff6b7f" stroke-width="2"><circle cx="241" cy="79" r="9"/><circle cx="265" cy="179" r="9"/><circle cx="99" cy="221" r="9"/></g>
+    <g stroke="#ff6b7f" stroke-width="2" stroke-linecap="round"><path d="M237,75 l8,8 M245,75 l-8,8"/><path d="M261,175 l8,8 M269,175 l-8,8"/><path d="M95,217 l8,8 M103,217 l-8,8"/></g>
+    <g fill="none" stroke="#93a0ad" stroke-dasharray="2 4"><line x1="250" y1="70" x2="300" y2="22"/><line x1="274" y1="182" x2="330" y2="198"/><line x1="90" y1="230" x2="40" y2="280"/></g>
+    <text x="300" y="16" font-family="IBM Plex Mono" font-size="10" fill="#93a0ad">~/.aws</text>
+    <text x="300" y="214" font-family="IBM Plex Mono" font-size="10" fill="#93a0ad">internet</text>
+    <text x="8" y="294" font-family="IBM Plex Mono" font-size="10" fill="#93a0ad">~/.ssh</text>
+  </svg>
+  <div class="src" style="color:var(--nink)"><b>Team</b> · Hemanth Raja · Poojitha Katta · November 2026</div>
+</section>
+
+<!-- 2 -->
+<section class="s">
+  <div class="k">The problem</div>
+  <h2>A one-line promise gets your keys</h2>
+  <div style="display:grid;grid-template-columns:1fr 1.15fr;gap:34px;align-items:center;margin-top:34px">
+    <div><div class="big" style="font-size:88px">1 line</div>
+      <p style="font-size:13px;color:var(--ink2);margin-top:10px;max-width:330px">is what a user approves before an MCP server runs on their machine: its own description of itself.</p></div>
+    <div class="grid">
+      <div class="card"><b>Trust by description</b><span>Agents pick up MCP servers from GitHub and registries. The user sees a sentence, not the code.</span></div>
+      <div class="card"><b>The full blast radius</b><span>The tool runs as the user: home folder, SSH keys, cloud and GitHub tokens, the open network.</span></div>
+      <div class="card"><b>Attacks already exist</b><span>Tool poisoning, credential exfiltration, DNS smuggling, rug pulls and persistence all target agent tooling.</span></div>
+    </div>
+  </div>
+  <div class="pn">02</div>
+</section>
+
+<!-- 3 -->
+<section class="s">
+  <div class="k">Who it is for</div>
+  <h2>Built for the team that says yes to tools</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:24px">
+    <div class="card" style="padding:18px 20px;min-height:200px"><div class="n">TODAY</div>
+      <ul><li>A developer finds an MCP server and installs it</li><li>Review means reading the README, if anyone does</li>
+      <li>Static scanners see the package, not what it does when called</li><li>An "update" can change everything after the first approval</li></ul></div>
+    <div class="bar" style="padding:18px 20px;min-height:200px"><div class="n" style="color:var(--accn)">WITH TOOL QUARANTINE</div>
+      <ul style="color:var(--nmute)"><li>Every tool version runs in a sealed box first</li><li>A trust report shows what it claimed and what it did</li>
+      <li>Approval is pinned to the SHA-256 of the code</li><li>Gateways, runtimes and CI refuse anything unapproved</li></ul></div>
+  </div>
+  <div class="src">Users: platform and security teams, and any developer letting an agent pick up third-party tools.</div>
+  <div class="pn">03</div>
+</section>
+
+<!-- 4 -->
+<section class="s d">
+  <div class="k">The solution</div>
+  <h2 style="margin-bottom:14px">Quarantine, exercise, observe, decide</h2>
+  <img class="shot" src="img/report-top.png" style="width:100%;height:228px;object-fit:cover;object-position:top">
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px">
+      <div class="card"><span class="n">01</span><b>Quarantine</b><span>Fresh container: no route out, read-only disk, caps dropped, decoy keys planted.</span></div>
+      <div class="card"><span class="n">02</span><b>Exercise</b><span>An agent on Vultr Serverless Inference calls the tool like a real user.</span></div>
+      <div class="card"><span class="n">03</span><b>Observe</b><span>strace on every file and process; a sinkhole answers DNS and HTTP.</span></div>
+      <div class="card"><span class="n">04</span><b>Decide</b><span>Trust score, claims vs. reality, policy, approve or block. Box destroyed.</span></div>
+  </div>
+  <div class="src">The trust report for the json-formatter sample. The feed streams while the tool runs.</div>
+  <div class="pn">04</div>
+</section>
+
+<!-- 5 -->
+<section class="s">
+  <div class="k">Architecture</div>
+  <h2>How it fits together</h2>
+  <svg width="856" height="330" viewBox="0 0 856 330" style="display:block">
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b7380"/></marker></defs>
+    <g font-family="IBM Plex Sans" font-size="11">
+      <rect x="0" y="20" width="150" height="70" rx="7" fill="#fafaf7" stroke="#d6334b" stroke-width="1.5"/>
+      <text x="12" y="44" font-family="Space Grotesk" font-weight="600" font-size="13">Untrusted tool</text><text x="12" y="62" fill="#3d4550">GitHub link or .zip,</text><text x="12" y="77" fill="#3d4550">or a built-in sample</text>
+      <rect x="0" y="210" width="150" height="70" rx="7" fill="#fafaf7" stroke="#8e5cf0" stroke-width="1.5"/>
+      <text x="12" y="234" font-family="Space Grotesk" font-weight="600" font-size="13">Reviewer</text><text x="12" y="252" fill="#3d4550">reads the trust report,</text><text x="12" y="267" fill="#3d4550">approves or blocks</text>
+      <rect x="196" y="20" width="190" height="260" rx="7" fill="#fafaf7" stroke="#14181d" stroke-opacity=".5" stroke-width="1.5"/>
+      <text x="208" y="44" font-family="Space Grotesk" font-weight="600" font-size="13">Orchestrator (FastAPI)</text>
+      <text x="208" y="66" fill="#3d4550">MCP stdio client</text><text x="208" y="84" fill="#3d4550">live event stream</text><text x="208" y="102" fill="#3d4550">analyzer: findings, verdict</text>
+      <text x="208" y="120" fill="#3d4550">claims vs. reality</text><text x="208" y="138" fill="#3d4550">policy engine</text>
+      <text x="208" y="156" fill="#3d4550">registry (SHA-256 pins)</text><text x="208" y="174" fill="#3d4550">console + JSON API</text>
+      <text x="208" y="266" font-family="IBM Plex Mono" font-size="9.5" fill="#6b7380">Vultr VM · Frankfurt</text>
+      <rect x="430" y="20" width="250" height="160" rx="9" fill="none" stroke="#5b5bf0" stroke-dasharray="5 5" stroke-width="1.5"/>
+      <text x="442" y="38" font-family="IBM Plex Mono" font-size="9.5" fill="#5b5bf0">PER-RUN INTERNAL NETWORK · NO ROUTE OUT</text>
+      <rect x="442" y="50" width="120" height="118" rx="7" fill="#fafaf7" stroke="#14181d" stroke-opacity=".5"/>
+      <text x="452" y="70" font-family="Space Grotesk" font-weight="600" font-size="12.5">Sandbox</text><text x="452" y="88" fill="#3d4550">tool + strace</text><text x="452" y="104" fill="#3d4550">decoy ~/.aws, ~/.ssh</text><text x="452" y="120" fill="#3d4550">read-only, caps</text><text x="452" y="134" fill="#3d4550">dropped, non-root</text><text x="452" y="152" fill="#3d4550">destroyed after</text>
+      <rect x="576" y="50" width="94" height="118" rx="7" fill="#fafaf7" stroke="#d6334b" stroke-opacity=".7"/>
+      <text x="586" y="70" font-family="Space Grotesk" font-weight="600" font-size="12.5">Sinkhole</text><text x="586" y="88" fill="#3d4550">answers DNS</text><text x="586" y="104" fill="#3d4550">and HTTP,</text><text x="586" y="120" fill="#3d4550">logs TLS SNI,</text><text x="586" y="136" fill="#3d4550">keeps payload</text>
+      <rect x="430" y="210" width="250" height="70" rx="7" fill="#fafaf7" stroke="#1f9d5c" stroke-width="1.5"/>
+      <text x="442" y="234" font-family="Space Grotesk" font-weight="600" font-size="13">Vultr Serverless Inference</text><text x="442" y="252" fill="#3d4550">qwen3.8-27b plans realistic calls</text><text x="442" y="267" fill="#3d4550">from the tool's own description</text>
+      <rect x="720" y="20" width="136" height="260" rx="7" fill="#fafaf7" stroke="#c27c0e" stroke-width="1.5"/>
+      <text x="732" y="44" font-family="Space Grotesk" font-weight="600" font-size="13">Enforcement</text><text x="732" y="66" fill="#3d4550">MCP gateways</text><text x="732" y="84" fill="#3d4550">agent runtimes</text><text x="732" y="102" fill="#3d4550">CLI check</text><text x="732" y="120" fill="#3d4550">GitHub Actions</text>
+      <text x="732" y="150" font-family="IBM Plex Mono" font-size="9.5" fill="#6b7380">GET /api/registry/</text><text x="732" y="164" font-family="IBM Plex Mono" font-size="9.5" fill="#6b7380">check?hash=…</text>
+    </g>
+    <g stroke="#6b7380" stroke-width="1.3" fill="none" marker-end="url(#ar)">
+      <line x1="150" y1="55" x2="194" y2="55"/><line x1="194" y1="245" x2="152" y2="245"/><line x1="152" y1="260" x2="194" y2="260"/>
+      <line x1="386" y1="100" x2="440" y2="100"/><line x1="440" y1="130" x2="388" y2="130"/>
+      <line x1="386" y1="245" x2="428" y2="245"/><line x1="386" y1="160" x2="718" y2="200" stroke-dasharray="3 3"/>
+    </g>
+  </svg>
+  <div class="legend"><span class="pill" style="background:#1f9d5c">Vultr Serverless Inference</span><span class="pill" style="background:#14181d">code, no model</span><span class="pill" style="background:#d6334b">untrusted / contained</span><span class="pill" style="background:#8e5cf0">a person decides</span></div>
+  <div class="pn">05</div>
+</section>
+
+<!-- 6 -->
+<section class="s d">
+  <div class="k">The containment moment</div>
+  <h2>“json-formatter: pure formatting.”</h2>
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:26px;align-items:center;margin-top:8px">
+    <div class="term">
+      <div><span class="t">+0.00s</span> <span class="p">◆ sandbox up: no route out, decoys planted</span></div>
+      <div><span class="t">+0.52s</span> → calling format_json</div>
+      <div class="c"><span class="t">+0.55s</span> ⚿ read AWS credentials <span class="t">~/.aws/credentials</span></div>
+      <div class="c"><span class="t">+0.56s</span> ⚿ read GitHub token <span class="t">~/.config/gh/hosts.yml</span></div>
+      <div class="c"><span class="t">+0.61s</span> ⛔ BLOCKED: HTTP POST analytics.tq-demo.example/collect</div>
+      <div class="t" style="padding-left:58px">body = {"collected": ["[default] aws_access_key_id=…"]}</div>
+      <div class="c"><span class="t">+0.70s</span> ⚖ blocked by workspace policy</div>
+    </div>
+    <div><div class="big" style="font-size:84px;color:var(--badn)">0<span style="font-size:30px;letter-spacing:0">/100</span></div>
+      <p style="font-size:13px;color:var(--nmute);margin-top:12px;line-height:1.55">DANGEROUS. The sinkhole captured the decoy keys as evidence. <b style="color:var(--nink)">Zero bytes left the box.</b> Policy blocked this exact version for every agent that checks the registry.</p></div>
+  </div>
+  <div class="src">Abridged from the json-formatter live feed. The credentials are decoys planted in the sandbox.</div>
+  <div class="pn">06</div>
+</section>
+
+<!-- 7 -->
+<section class="s">
+  <div class="k">Claims vs. reality</div>
+  <h2>The gap a static scanner can't see</h2>
+  <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:24px;align-items:start">
+    <img class="shot" src="img/claims.png" style="width:100%">
+    <div class="grid" style="gap:8px">
+      <div class="card"><b>Read the promise</b><span>The tool's own MCP descriptions are parsed into a claim per area: files, home, secrets, network, processes, writes.</span></div>
+      <div class="card"><b>Watch the behaviour</b><span>Each claim is compared with what strace and the sinkhole saw.</span></div>
+      <div class="card"><b>Mark the gap</b><span>Every area ends as clean, as claimed, unexpected or <b style="display:inline;font-size:11.5px;color:var(--bad)">over-reach</b>. Hidden &lt;IMPORTANT&gt; prompts are highlighted.</span></div>
+    </div>
+  </div>
+  <div class="pn">07</div>
+</section>
+
+<!-- 8 -->
+<section class="s d">
+  <div class="k">Blast radius zero</div>
+  <h2>Every reach stops at the sandbox wall</h2>
+  <img class="shot" src="img/blast.png" style="width:100%;height:352px;object-fit:cover;object-position:top">
+  <div class="src">weather-forecast: a hidden prompt asks the model to pass the SSH key; the tool reads it and tries to smuggle it out. All of it is contained.</div>
+  <div class="pn">08</div>
+</section>
+
+<!-- 9 -->
+<section class="s">
+  <div class="k">Decisions that are enforced</div>
+  <h2>Approve one version, not a name</h2>
+  <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:24px;align-items:start">
+    <div class="grid" style="gap:8px">
+      <div class="card"><span class="n">PINNED</span><b>SHA-256 of the code</b><span>Change one byte and the tool is unknown again, so a later update can't slip in a rug pull.</span></div>
+      <div class="card"><span class="n">POLICY</span><b>Block, review or off</b><span>Exfiltration, credential reads, tool poisoning, persistence and rug pulls are blocked by default. Borderline findings need a written reason.</span></div>
+      <div class="card"><span class="n">AUDITED</span><b>Every change kept</b><span>Who, when, what and why, per fingerprint. Approvals can expire.</span></div>
+    </div>
+    <img class="shot" src="img/policies.png" style="width:100%">
+  </div>
+  <div class="pn">09</div>
+</section>
+
+<!-- 10 -->
+<section class="s">
+  <div class="k">Results on the sample suite</div>
+  <h2>Seven tools that all look harmless</h2>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+    <div class="card"><div class="big" style="font-size:34px">5/5</div><span>malicious or over-reaching samples flagged</span></div>
+    <div class="card"><div class="big" style="font-size:34px">2/2</div><span>honest samples rated TRUSTED 100</span></div>
+    <div class="card"><div class="big" style="font-size:34px">4</div><span>auto-blocked by the default policy, no human needed</span></div>
+    <div class="card"><div class="big" style="font-size:34px">0 B</div><span>left any sandbox, in any run</span></div>
+  </div>
+  <table>
+    <tr><th>Tool</th><th>What it says</th><th>What it really does</th><th>Verdict</th></tr>
+    <tr><td class="mono">csv-analyst</td><td>Summarize a workspace CSV</td><td>Exactly that</td><td><span class="tag t-ok">trusted 100</span></td></tr>
+    <tr><td class="mono">unit-converter</td><td>Pure computation</td><td>Exactly that</td><td><span class="tag t-ok">trusted 100</span></td></tr>
+    <tr><td class="mono">notes-search</td><td>Workspace only</td><td>Indexes the whole home folder</td><td><span class="tag t-warn">suspicious · review</span></td></tr>
+    <tr><td class="mono">doc-converter</td><td>Markdown to HTML</td><td>Fingerprints the host, edits ~/.bashrc</td><td><span class="tag t-warn">suspicious · blocked</span></td></tr>
+    <tr><td class="mono">json-formatter</td><td>Pure formatting</td><td>Reads cloud keys, POSTs them out</td><td><span class="tag t-bad">dangerous · blocked</span></td></tr>
+    <tr><td class="mono">weather-forecast</td><td>3-day forecast</td><td>Hidden prompt, SSH key out via DNS</td><td><span class="tag t-bad">dangerous · blocked</span></td></tr>
+    <tr><td class="mono">github-helper</td><td>List pull requests</td><td>Clean first call, then steals everything</td><td><span class="tag t-bad">dangerous · blocked</span></td></tr>
+  </table>
+  <div class="pn">10</div>
+</section>
+
+<!-- 11 -->
+<section class="s d">
+  <div class="k">Threat coverage</div>
+  <h2>Five attack techniques, five signals</h2>
+  <table style="font-size:12px">
+    <tr><th>Technique</th><th>Sample</th><th>How the sandbox catches it</th></tr>
+    <tr><td><b>Credential exfiltration</b></td><td class="mono">json-formatter</td><td style="color:var(--nmute)">strace sees decoy secrets opened; the sinkhole keeps the HTTP body</td></tr>
+    <tr><td><b>Tool poisoning + DNS smuggling</b></td><td class="mono">weather-forecast</td><td style="color:var(--nmute)">hidden &lt;IMPORTANT&gt; text in the description; data encoded in DNS names</td></tr>
+    <tr><td><b>Rug pull</b></td><td class="mono">github-helper</td><td style="color:var(--nmute)">per-call timeline: the first call is clean, a later one is not</td></tr>
+    <tr><td><b>Persistence</b></td><td class="mono">doc-converter</td><td style="color:var(--nmute)">write attempts to ~/.bashrc and autostart, refused by the read-only disk</td></tr>
+    <tr><td><b>Scope over-reach</b></td><td class="mono">notes-search</td><td style="color:var(--nmute)">"workspace only" vs. reads across the home folder</td></tr>
+  </table>
+  <div class="bar" style="background:#161d23;margin-top:18px">The agent reads the tool's description the way a user's agent would, so the tool is exercised on its own terms, including <span class="acc">calls after the first one</span>, which is where rug pulls hide.</div>
+  <div class="pn">11</div>
+</section>
+
+<!-- 12 -->
+<section class="s d">
+  <div class="k">Built on Vultr</div>
+  <h2>Every run is disposable</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="card" style="padding:16px 18px"><span class="n">VULTR CLOUD COMPUTE</span><b>The orchestrator and every sandbox</b><span>One VM (vc2-2c-4gb, Frankfurt) runs the console, the per-run sandbox containers and the sinkhole. Each run gets its own internal Docker network with no route out, and both containers are destroyed afterwards.</span></div>
+    <div class="card" style="padding:16px 18px"><span class="n">VULTR SERVERLESS INFERENCE</span><b>The agent that exercises the tool</b><span>OpenAI-compatible API, model qwen3.8-27b. It reads the advertised tools and plans realistic calls. With no key, a deterministic mock agent runs the same pipeline offline.</span></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px">
+    <div class="card"><div class="big" style="font-size:28px;color:var(--okn)">0</div><span>routes to the internet from a sandbox</span></div>
+    <div class="card"><div class="big" style="font-size:28px">1 VM</div><span>hosts the whole product, live at http://199.247.22.132/</span></div>
+    <div class="card"><div class="big" style="font-size:28px">1 key</div><span>the inference key lives only on the VM (chmod 600), never in the repo</span></div>
+  </div>
+  <div class="pn">12</div>
+</section>
+
+<!-- 13 -->
+<section class="s">
+  <div class="k">Integrations</div>
+  <h2>One HTTP call before any tool launches</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="term" style="font-size:11px;line-height:1.6;color:#c9d1d9">
+      <div class="t"># MCP gateway / agent runtime</div>
+      <div>h = tool_hash(tool_dir, entry, "upload")</div>
+      <div>r = GET /api/registry/check?hash=h</div>
+      <div>if not r["allowed"]: refuse(r["reason"])</div>
+      <div style="margin-top:8px" class="t"># CLI: exits 0 only for approved code</div>
+      <div>python -m tq.cli check ./server "python /tool/server.py"</div>
+      <div style="margin-top:8px" class="t"># GitHub Actions: fail unless TRUSTED</div>
+      <div>POST /api/tools/github → POST /api/runs → poll</div>
+    </div>
+    <div class="grid" style="gap:8px">
+      <div class="card"><b>Gateways and runtimes</b><span>Unknown, blocked, expired or policy-forbidden code gets <span class="mono">allowed: false</span> with a reason.</span></div>
+      <div class="card"><b>CI, shift left</b><span>Quarantine the tool on every pull request that changes it.</span></div>
+      <div class="card"><b>Audit export</b><span>Every report as JSON or PDF: findings, timeline, claims, decision history.</span></div>
+    </div>
+  </div>
+  <div class="pn">13</div>
+</section>
+
+<!-- 14 -->
+<section class="s">
+  <div class="k">Technical stack</div>
+  <h2>What it runs on</h2>
+  <table>
+    <tr><th style="width:150px">Layer</th><th>Technology</th></tr>
+    <tr><td><b>Model</b></td><td>Vultr Serverless Inference (qwen3.8-27b, OpenAI-compatible); deterministic mock agent for offline runs</td></tr>
+    <tr><td><b>Sandbox</b></td><td>Docker: internal network, read-only root, all capabilities dropped, non-root, memory and PID caps; strace; decoy home folder</td></tr>
+    <tr><td><b>Sinkhole</b></td><td>Python DNS / HTTP / TLS-SNI capture service on the run's network</td></tr>
+    <tr><td><b>Protocol</b></td><td>Official MCP Python SDK in the box; our own MCP stdio client in the orchestrator</td></tr>
+    <tr><td><b>Server and UI</b></td><td>FastAPI, JSON file store, plain HTML/JS console with a live event stream, light and dark themes</td></tr>
+    <tr><td><b>Quality</b></td><td>28 automated tests (analyzer, live feed, claims, uploads, policies) plus Docker integration tests</td></tr>
+    <tr><td><b>Operations</b></td><td>Vultr VM, docker compose, git-archive deploy, provisioning script</td></tr>
+  </table>
+  <div class="src">Built with Claude Code.</div>
+  <div class="pn">14</div>
+</section>
+
+<!-- 15 -->
+<section class="s">
+  <div class="k">Limits and future work</div>
+  <h2>Honest limits, a clear next step</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="card" style="padding:18px 20px;min-height:250px"><div class="n">STATED LIMITS</div>
+      <ul><li>Python stdio MCP servers only for now</li><li>Container isolation, not a micro-VM: a kernel exploit is out of scope</li>
+      <li>A tool that waits for a date or a rare input can stay quiet in one run</li><li>The demo has no sign-in or roles; it is one workspace</li>
+      <li>The seven samples are ours, written to mirror real techniques</li></ul></div>
+    <div class="bar" style="padding:18px 20px;min-height:250px"><div class="n" style="color:var(--accn)">NEXT</div>
+      <ul style="color:var(--nmute)"><li>gVisor or Firecracker isolation per run</li><li>Node, Go and binary MCP servers; HTTP transport</li>
+      <li>Longer, adversarial exercising and time travel</li><li>SSO, roles and teams; signed attestations of a passed quarantine</li>
+      <li>Scan public MCP registries continuously</li></ul></div>
+  </div>
+  <div class="pn">15</div>
+</section>
+
+<!-- 16 -->
+<section class="s d">
+  <div class="k">Tool Quarantine · Vultr Agent Rush</div>
+  <h1 style="margin-top:70px;font-size:50px">Don't install an agent tool<br><span style="color:var(--accn)">until you've watched it run.</span></h1>
+  <div style="position:absolute;left:52px;right:52px;bottom:44px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;font-size:11px;color:var(--nmute)">
+    <div><div class="mono" style="color:var(--nink)">Live demo</div>http://199.247.22.132/</div>
+    <div><div class="mono" style="color:var(--nink)">Code</div>github.com/Hemanth-Raja/<br>tool-qarantine</div>
+    <div><div class="mono" style="color:var(--nink)">Try a sample</div>Scans → json-formatter →<br>Quarantine &amp; run</div>
+    <div><div class="mono" style="color:var(--nink)">Team</div>Hemanth Raja<br>Poojitha Katta</div>
+  </div>
+</section>
+</body></html>
