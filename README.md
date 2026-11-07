@@ -11,7 +11,7 @@
 [![Bytes leaked](https://img.shields.io/badge/bytes%20that%20left%20the%20sandbox-0-2f6f4a)](#how-the-sandbox-contains-a-tool)
 [![Built on Vultr](https://img.shields.io/badge/built%20on-Vultr-007bfc)](#vultr-technology)
 
-**[Live demo](http://199.247.22.132/)** · **[▶ Demo video (3:41, live)](https://youtu.be/WwdBYWjYljU)** · **[Slide deck](docs/tool-quarantine-deck.pdf)** · **[▶ Run it locally](#try-it)**
+**[Live demo](https://199-247-22-132.sslip.io/)** · **[▶ Demo video (3:41, live)](https://youtu.be/WwdBYWjYljU)** · **[Slide deck](docs/tool-quarantine-deck.pdf)** · **[▶ Run it locally](#try-it)**
 
 </div>
 
@@ -53,7 +53,7 @@ In one sentence: *the tool runs, the sandbox watches, a person decides.* Approva
 | **Containment** | 0 bytes left any sandbox, in any run; every exfiltration attempt was answered by the sinkhole and kept as evidence |
 | **Policy** | 4 of the 5 bad samples are blocked automatically by the default workspace policy; the fifth (scope over-reach) goes to review |
 | **Attack techniques** | credential exfiltration, tool poisoning with DNS smuggling, rug pull, persistence, scope over-reach |
-| **Live** | runs on a Vultr VM with the agent on Vultr Serverless Inference (qwen3.8-27b): [http://199.247.22.132/](http://199.247.22.132/) |
+| **Live** | runs on a Vultr VM with the agent on Vultr Serverless Inference (qwen3.8-27b): [https://199-247-22-132.sslip.io/](https://199-247-22-132.sslip.io/) |
 | **Tests** | 28 automated tests pass (analyzer, live feed, claims, uploads, policies); 7 Docker integration tests run where Docker is available |
 | **Runs without keys** | with no `VULTR_API_KEY`, a deterministic mock agent runs the same pipeline offline |
 
@@ -148,7 +148,7 @@ but the full request, decoy payload and all, is captured and shown in the report
 
 ## Try it
 
-**Online:** open the [live demo](http://199.247.22.132/) → **Scans** → `json-formatter` → **Quarantine & run**.
+**Online:** open the [live demo](https://199-247-22-132.sslip.io/) → **Scans** → `json-formatter` → **Quarantine & run**.
 
 **Locally:**
 
@@ -174,7 +174,7 @@ ssh root@<vm-ip> 'bash -s' < deploy/provision.sh      # installs Docker, builds 
 # then open http://<vm-ip>/
 ```
 
-See `deploy/docker-compose.yml`. The control-plane container mounts the host Docker socket so it
+For HTTPS, set `TQ_SITE=<your-ip-with-dashes>.sslip.io` (or your own domain) in `deploy/.env`; Caddy then fetches a Let's Encrypt certificate automatically. See `deploy/docker-compose.yml`. The control-plane container mounts the host Docker socket so it
 can build and destroy sandboxes.
 
 ## Usage
