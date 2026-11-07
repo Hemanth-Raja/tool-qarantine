@@ -28,6 +28,7 @@ services:
       - "443:443"
     environment:
       - TQ_SITE=${TQ_SITE:-:80}                   # public hostname -> automatic HTTPS; default plain HTTP
+      - TQ_PUBLIC_IP=${TQ_PUBLIC_IP:-tq-no-ip.invalid}  # bare-IP links redirect to TQ_SITE
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data                           # certificates survive restarts
