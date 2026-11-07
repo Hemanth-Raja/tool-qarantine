@@ -8,3 +8,9 @@
 		flush_interval -1
 	}
 }
+
+# Old links to the bare IP (e.g. http://199.247.22.132/) go to the hostname.
+# TQ_PUBLIC_IP is set in deploy/.env; unset, this block matches nothing.
+http://{$TQ_PUBLIC_IP} {
+	redir https://{$TQ_SITE}{uri} permanent
+}

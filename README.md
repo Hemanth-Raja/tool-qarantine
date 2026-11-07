@@ -174,7 +174,7 @@ ssh root@<vm-ip> 'bash -s' < deploy/provision.sh      # installs Docker, builds 
 # then open http://<vm-ip>/
 ```
 
-For HTTPS, set `TQ_SITE=<your-ip-with-dashes>.sslip.io` (or your own domain) in `deploy/.env`; Caddy then fetches a Let's Encrypt certificate automatically. See `deploy/docker-compose.yml`. The control-plane container mounts the host Docker socket so it
+For HTTPS, set `TQ_SITE=<your-ip-with-dashes>.sslip.io` (or your own domain) in `deploy/.env`; Caddy then fetches a Let's Encrypt certificate automatically. Add `TQ_PUBLIC_IP=<your-ip>` to send old bare-IP links to it. See `deploy/docker-compose.yml`. The control-plane container mounts the host Docker socket so it
 can build and destroy sandboxes.
 
 ## Usage
