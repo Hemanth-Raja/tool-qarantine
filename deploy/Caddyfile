@@ -1,5 +1,5 @@
 # Front door for the demo VM: HTTPS with an automatic Let's Encrypt certificate.
-# TQ_SITE is the public hostname (e.g. 199-247-22-132.sslip.io, set in deploy/.env).
+# TQ_SITE is the public hostname (e.g. 203-0-113-10.sslip.io, set in deploy/.env).
 # Unset, it defaults to :80 (plain HTTP), as before.
 {$TQ_SITE} {
 	encode gzip
@@ -9,7 +9,7 @@
 	}
 }
 
-# Old links to the bare IP (e.g. http://199.247.22.132/) go to the hostname.
+# Old links to the bare IP (e.g. http://203.0.113.10/) go to the hostname.
 # TQ_PUBLIC_IP is set in deploy/.env; unset, this block matches nothing.
 http://{$TQ_PUBLIC_IP} {
 	redir https://{$TQ_SITE}{uri} permanent

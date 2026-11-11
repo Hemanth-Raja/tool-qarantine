@@ -11,9 +11,11 @@
 [![Bytes leaked](https://img.shields.io/badge/bytes%20that%20left%20the%20sandbox-0-2f6f4a)](#how-the-sandbox-contains-a-tool)
 [![Built on Vultr](https://img.shields.io/badge/built%20on-Vultr-007bfc)](#vultr-technology)
 
-**[Live demo](https://199-247-22-132.sslip.io/)** · **[▶ Demo video (3:41, live)](https://youtu.be/Lx5BkALLJLs)** · **[Slide deck](docs/tool-quarantine-deck.pdf)** · **[▶ Run it locally](#try-it)**
+**[▶ Demo video (3:41)](https://youtu.be/Lx5BkALLJLs)** · **[Slide deck](docs/tool-quarantine-deck.pdf)** · **[▶ Run it locally](#try-it)**
 
 </div>
+
+> **Project status: finished hackathon project.** Tool Quarantine was built for the Vultr Agent Rush 2026 hackathon (Blast Radius Zero track). Judging is over and the hosted demo has been shut down, so the old live-demo link no longer works. To see it in action, watch the [demo video](https://youtu.be/Lx5BkALLJLs) (recorded live on the Vultr deployment) or [run it locally](#try-it). The [`deploy/`](deploy/) files are kept so anyone can host their own copy.
 
 ## Contents
 
@@ -53,7 +55,7 @@ In one sentence: *the tool runs, the sandbox watches, a person decides.* Approva
 | **Containment** | 0 bytes left any sandbox, in any run; every exfiltration attempt was answered by the sinkhole and kept as evidence |
 | **Policy** | 4 of the 5 bad samples are blocked automatically by the default workspace policy; the fifth (scope over-reach) goes to review |
 | **Attack techniques** | credential exfiltration, tool poisoning with DNS smuggling, rug pull, persistence, scope over-reach |
-| **Live** | runs on a Vultr VM with the agent on Vultr Serverless Inference (qwen3.8-27b): [https://199-247-22-132.sslip.io/](https://199-247-22-132.sslip.io/) |
+| **Live** | ran on a Vultr VM with the agent on Vultr Serverless Inference (qwen3.8-27b) during the hackathon; the hosted demo is now offline, see the [demo video](https://youtu.be/Lx5BkALLJLs) |
 | **Tests** | 28 automated tests pass (analyzer, live feed, claims, uploads, policies); 7 Docker integration tests run where Docker is available |
 | **Runs without keys** | with no `VULTR_API_KEY`, a deterministic mock agent runs the same pipeline offline |
 
@@ -148,7 +150,7 @@ but the full request, decoy payload and all, is captured and shown in the report
 
 ## Try it
 
-**Online:** open the [live demo](https://199-247-22-132.sslip.io/) → **Scans** → `json-formatter` → **Quarantine & run**.
+**Online:** the hosted demo has been shut down now that the hackathon is over. The [demo video](https://youtu.be/Lx5BkALLJLs) shows a full live run (**Scans** → `json-formatter` → **Quarantine & run**), and the steps below run the same thing on your machine.
 
 **Locally:**
 
@@ -167,7 +169,9 @@ No Vultr key? The agent falls back to a deterministic **mock** that exercises ev
 tool, so the whole pipeline — and the test suite — runs offline. Set `VULTR_API_KEY` to use a
 real model.
 
-### Deploy to Vultr
+### Deploy to Vultr (self-host)
+
+The original hackathon VM is gone; these steps bring up your own copy on a fresh VM.
 
 ```bash
 ssh root@<vm-ip> 'bash -s' < deploy/provision.sh      # installs Docker, builds images, starts the app
